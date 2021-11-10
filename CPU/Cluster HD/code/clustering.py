@@ -88,8 +88,8 @@ def do_exp(dim, dataset, quantize=False):
     temp = [-1]*round(D/2) + [1]*round(D/2)
     np.random.shuffle(temp)
     lvl_hvs.append(temp)
-    change_list = range(0, D)
-    np.random.shuffle(list(change_list))
+    change_list = list(range(0, D))
+    np.random.shuffle(change_list)
     cnt_toChange = int(D/2 / (L-1))
     for i in range(1, L):
         temp = np.array(lvl_hvs[i-1])
