@@ -4,7 +4,7 @@ CFLAGS := -O1 -ffast-math -fno-lax-vector-conversions -fno-vectorize -fno-slp-ve
 LFLAGS :=
 
 host-normal: src/host.cpp src/hd.cpp src/host.h src/hd.h src/hd.h
-	clang++ $(CFLAGS) -o $@ src/host.cpp src/hd.cpp $(LFLAGS)
+	clang++ -g $(CFLAGS) -o $@ src/host.cpp src/hd.cpp $(LFLAGS)
 
 build/host.cpu.ll: src/host.cpp src/host.h src/hd.h
 	clang++ -DHPVM -DDEVICE=hpvm::CPU_TARGET $(CFLAGS) $(INCLUDES) -emit-llvm -S -o $@ $<

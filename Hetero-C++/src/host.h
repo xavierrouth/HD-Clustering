@@ -33,6 +33,6 @@ struct aligned_allocator
 #define Dhv				2048  //hypervectors length
 int EPOCH = 5;
 bool shuffled = false;
-std::string X_data_path = "./isolet_trainX.bin";
-std::string y_data_path = "./isolet_trainY.bin";
+std::string X_data_path = "../dataset/isolet_train_trainX.bin";
+std::string y_data_path = "../dataset/isolet_train_trainY.bin";
 

@@ -14,6 +14,7 @@ using namespace std;
 
 void datasetBinaryRead(vector<int> &data, string path){
 	ifstream file_(path, ios::in | ios::binary);
+	assert(file_.is_open() && "Couldn't open file!");
 	int32_t size;
 	file_.read((char*)&size, sizeof(size));
 	int32_t temp;
@@ -33,43 +34,13 @@ int main(int argc, char** argv)
 	datasetBinaryRead(X_data, X_data_path);
 	datasetBinaryRead(y_data, y_data_path);
 	
-	//Shuffle the data (and labels)
-	vector<int> X_data_shuffled(X_data.size());
-	vector<int> y_data_shuffled(y_data.size());
-	int shuffle_arr[y_data.size()];
-	srand (time(NULL));
-
-	if(shuffled){
-	
-		for(int i = 0; i < y_data.size(); i++)
-			shuffle_arr[i] = i;
-		//shuffle
-		for(int i = y_data.size()-1; i != 0; i--){
-			int j = rand()%i;
-			int temp = shuffle_arr[i];
-			shuffle_arr[i] = shuffle_arr[j];
-			shuffle_arr[j] = temp;
-		}
-
-		for(int i = 0; i < y_data.size(); i++){
-			y_data_shuffled[i] = y_data[shuffle_arr[i]];
-			for(int j = 0; j < N_FEAT; j++){
-				X_data_shuffled[i*N_FEAT + j] = X_data[shuffle_arr[i]*N_FEAT + j];
-			}
-		}
-	}	
-	
-	int N_SAMPLE = y_data_shuffled.size();
-	int input_int = X_data_shuffled.size();
+	int N_SAMPLE = y_data.size();
+	int input_int = X_data.size();
 	 
 	vector<int, aligned_allocator<int>> input_gmem(input_int);
-	for(int i = 0; i < input_int; i++){
-		if(shuffled)
-			input_gmem[i] = X_data_shuffled[i];
-		else
-			input_gmem[i] = X_data[i];
+	for (int i = 0; i < input_int; ++i) {
+		input_gmem[i] = X_data[i];
 	}
-	
 	vector<int, aligned_allocator<int>> labels_gmem(N_SAMPLE);
 
 	//We need a seed ID. To generate in a random yet determenistic (for later debug purposes) fashion, we use bits of log2 as some random stuff.
@@ -131,10 +102,7 @@ int main(int argc, char** argv)
 	
 	ofstream myfile("out.txt");
 	for(int i = 0; i < N_SAMPLE; i++){
-		if(shuffled)
-			myfile << y_data_shuffled[i] << " " << labels_gmem[i] << endl;
-		else
-			myfile << y_data[i] << " " << labels_gmem[i] << endl;
+		myfile << y_data[i] << " " << labels_gmem[i] << endl;
 	}
 	//calculate score
 	//string command = "python -W ignore mutual_info.py";
