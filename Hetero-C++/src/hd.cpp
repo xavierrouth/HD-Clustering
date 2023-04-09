@@ -60,7 +60,7 @@ void encodeUnit(std::queue<int> feature_stream[N_FEAT_PAD], uint32_t ID[Dhv/ROW]
 			//Read all features into the feature_array
 			loop_stream:
 			for(int i = 0; i < N_FEAT_PAD; i++){
-				feature_array[i] = feature_stream[i].back();
+				feature_array[i] = feature_stream[i].front();
 				feature_stream[i].pop();
 			}
 
@@ -127,13 +127,13 @@ void encodeUnit(std::queue<int> feature_stream[N_FEAT_PAD], uint32_t ID[Dhv/ROW]
 				//Note that we use quantized random projection. Otherwise, we will need higher bit-width for classes (and tmp resgiter during dot-product).
 				loop_enc_stream:
 				for(int i = 0; i < ROW; i++){
-					enc_stream[i].push(encHV_partial[i]);
+					//enc_stream[i].push(encHV_partial[i]);
 					//if(iter_epoch == 0 && iter_read == 1)
 						//cout << encHV_partial[i] << endl;
-//					if(encHV_partial[i] >= 0)
-//						enc_stream[i] << 1;
-//					else
-//						enc_stream[i] << -1;
+					if(encHV_partial[i] >= 0)
+						enc_stream[i].push(1);
+					else
+						enc_stream[i].push(-1);
 				}
 			}
 		}
@@ -212,7 +212,7 @@ void searchUnit(std::queue<int> enc_stream[ROW], int *labels_gmem, int EPOCH, in
 			for(int i_dim = 0; i_dim < Dhv; i_dim += ROW){
 				loop_stream:
 				for(int j_sub = 0; j_sub < ROW; j_sub++){
-					encHV_partial[j_sub] = enc_stream[j_sub].back();
+					encHV_partial[j_sub] = enc_stream[j_sub].front();
 					enc_stream[j_sub].pop();
 					encHV_full[i_dim + j_sub] = encHV_partial[j_sub];
 				}

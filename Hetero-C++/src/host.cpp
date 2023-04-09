@@ -33,6 +33,31 @@ int main(int argc, char** argv)
 	vector<int> y_data;
 	datasetBinaryRead(X_data, X_data_path);
 	datasetBinaryRead(y_data, y_data_path);
+
+	int shuffle_arr[y_data.size()];
+	srand (time(NULL));
+	if(shuffled){
+		vector<int> X_data_shuffled(X_data.size());
+		vector<int> y_data_shuffled(y_data.size());
+		for(int i = 0; i < y_data.size(); i++)
+			shuffle_arr[i] = i;
+		//shuffle
+		for(int i = y_data.size()-1; i != 0; i--){
+			int j = rand()%i;
+			int temp = shuffle_arr[i];
+			shuffle_arr[i] = shuffle_arr[j];
+			shuffle_arr[j] = temp;
+		}
+
+		for(int i = 0; i < y_data.size(); i++){
+			y_data_shuffled[i] = y_data[shuffle_arr[i]];
+			for(int j = 0; j < N_FEAT; j++){
+				X_data_shuffled[i*N_FEAT + j] = X_data[shuffle_arr[i]*N_FEAT + j];
+			}
+		}
+		X_data = X_data_shuffled;
+		y_data = y_data_shuffled;
+	}	
 	
 	int N_SAMPLE = y_data.size();
 	int input_int = X_data.size();
