@@ -9,14 +9,14 @@
  * feature_stream (output): N_FEAT_PAD parallel streams to stream the data to the next module.
  * size (input): number of data sampels.
  */
-void inputStream(int *input_gmem, std::queue<int> feature_stream[N_FEAT_PAD], int EPOCH, int size, int iter_epoch, int iter_read) {
+void inputStream(int *input_gmem, int *feature_stream, int EPOCH, int size, int iter_epoch, int iter_read) {
 	 //Need to move the pointer by intPerInput after each input
 	int offset = iter_read * N_FEAT;
 	for (int i = 0; i < N_FEAT; i++) {
-		feature_stream[i].push(input_gmem[offset + i]);
+		feature_stream[i] = input_gmem[offset + i];
 	}
 	for (int i = 0; i < PAD; i++) {
-		feature_stream[N_FEAT + i].push(0);
+		feature_stream[N_FEAT + i] = 0;
 	}
 }
 
@@ -32,24 +32,15 @@ void inputStream(int *input_gmem, std::queue<int> feature_stream[N_FEAT_PAD], in
  * enc_stream (output): streams ROW encoded dimensions per (Div/COL) cycles to the next module.
  * size (input): number of data samples.
  */
-void encodeUnit(std::queue<int> feature_stream[N_FEAT_PAD], uint32_t ID[Dhv/ROW], std::queue<int> enc_stream[ROW], int EPOCH, int size, int iter_epoch, int iter_read) {
+void encodeUnit(int *feature_stream, uint32_t ID[Dhv/ROW], int *enc_stream, int EPOCH, int size, int iter_epoch, int iter_read) {
 
 	//Operate on ROW encoding dimension per cycle.
 	int encHV_partial[ROW];
-
-	int feature_array[N_FEAT_PAD];
-	//Factor the feature memory into COL, as we read COL elements of it in parallel.
 
 	//ID register to keep ROW+COL bits for a ROW*COL window.
 	//ID memory has ROW bits per cell, so we use 2*ROW bit register (extra bits will be used in the next window).
 	//It might look a little tricky. See the report for visualization.
 	uint64_t ID_reg;
-
-	//Read all features into the feature_array
-	for (int i = 0; i < N_FEAT_PAD; i++) {
-		feature_array[i] = feature_stream[i].front();
-		feature_stream[i].pop();
-	}
 
 	//Probe ROW rows simultanously for mat-vec multplication (result = r encoding dimension).
 	//Each row block has Dhv/ROW rows.
@@ -77,7 +68,7 @@ void encodeUnit(std::queue<int> feature_stream[N_FEAT_PAD], uint32_t ID[Dhv/ROW]
 				uint8_t ID_row = (ID_reg >> i) & 0xFF;
 				for (int j = 0; j < COL; j++) {
 					//For column group c, we read features c*COL to (c+1)*COL.
-					int feature = feature_array[c*COL + j];
+					int feature = feature_stream[c*COL + j];
 					if (ID_row & (1 << j))
 						encHV_partial[i] += feature;
 					else
@@ -112,9 +103,9 @@ void encodeUnit(std::queue<int> feature_stream[N_FEAT_PAD], uint32_t ID[Dhv/ROW]
 			//if (iter_epoch == 0 && iter_read == 1)
 				//cout << encHV_partial[i] << endl;
 			if (encHV_partial[i] >= 0)
-				enc_stream[i].push(1);
+				enc_stream[r*ROW+i] = 1;
 			else
-				enc_stream[i].push(-1);
+				enc_stream[r*ROW+i] = -1;
 		}
 	}
 }
@@ -132,11 +123,9 @@ void encodeUnit(std::queue<int> feature_stream[N_FEAT_PAD], uint32_t ID[Dhv/ROW]
  * size (input): number of data samples.
  */
 
-void searchUnit(std::queue<int> enc_stream[ROW], int *labels_gmem, int EPOCH, int size, int *centerHV, int *centerHV_temp, float *norm2_inv, int iter_epoch, int iter_read) {
+void searchUnit(int *enc_stream, int *labels_gmem, int EPOCH, int size, int *centerHV, int *centerHV_temp, float *norm2_inv, int iter_epoch, int iter_read) {
 
 	//Explained previously: to read ROW encoding dimensions per cycle.
-	int encHV_partial[ROW];
-
 	//To store the dot-product of the centroid classes with the encoding hypervector.
 	uint64_t dotProductRes[N_CENTER];
 
@@ -170,9 +159,7 @@ void searchUnit(std::queue<int> enc_stream[ROW], int *labels_gmem, int EPOCH, in
 	//read one encoded HV
 	for (int i_dim = 0; i_dim < Dhv; i_dim += ROW) {
 		for (int j_sub = 0; j_sub < ROW; j_sub++) {
-			encHV_partial[j_sub] = enc_stream[j_sub].front();
-			enc_stream[j_sub].pop();
-			encHV_full[i_dim + j_sub] = encHV_partial[j_sub];
+			encHV_full[i_dim + j_sub] = enc_stream[i_dim+j_sub];
 		}
 	}
 	//Initialize the centroids in the first epoch
@@ -224,10 +211,10 @@ void searchUnit(std::queue<int> enc_stream[ROW], int *labels_gmem, int EPOCH, in
 
 void top(int *input_gmem, int *ID_gmem, int *labels_gmem, int EPOCH, int size) {
 
-	std::queue<int> feature_stream[N_FEAT_PAD];
+	int feature_stream[N_FEAT_PAD];
 
 	//For now, the encoding stream is integer while we are using bipolar (+1, -1) encoding. Fix it later.
-	std::queue<int> enc_stream[ROW];
+	int enc_stream[Dhv];
 
 	//We have a seed ID of Dhv length, and we partition it to Dhv/ROW pieces of ROW bits as we operate on ROW rows at the same time.
 	uint32_t ID[Dhv/ROW];
