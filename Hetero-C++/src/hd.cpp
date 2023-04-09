@@ -1,5 +1,6 @@
-#include <iostream>
-#include <queue>
+#ifdef HPVM
+#include <heterocc.h>
+#endif
 #include "hd.h"
 
 /*
@@ -9,7 +10,7 @@
  * feature_stream (output): N_FEAT_PAD parallel streams to stream the data to the next module.
  * size (input): number of data sampels.
  */
-void inputStream(int *input_gmem, int *feature_stream, int EPOCH, int size, int iter_epoch, int iter_read) {
+void inputStream(int *__restrict input_gmem, int *__restrict feature_stream, int EPOCH, int size, int iter_epoch, int iter_read) {
 	 //Need to move the pointer by intPerInput after each input
 	int offset = iter_read * N_FEAT;
 	for (int i = 0; i < N_FEAT; i++) {
@@ -32,7 +33,7 @@ void inputStream(int *input_gmem, int *feature_stream, int EPOCH, int size, int 
  * enc_stream (output): streams ROW encoded dimensions per (Div/COL) cycles to the next module.
  * size (input): number of data samples.
  */
-void encodeUnit(int *feature_stream, uint32_t ID[Dhv/ROW], int *enc_stream, int EPOCH, int size, int iter_epoch, int iter_read) {
+void encodeUnit(int *__restrict feature_stream, uint32_t *__restrict ID, int *__restrict enc_stream, int EPOCH, int size, int iter_epoch, int iter_read) {
 
 	//Operate on ROW encoding dimension per cycle.
 	int encHV_partial[ROW];
@@ -123,7 +124,7 @@ void encodeUnit(int *feature_stream, uint32_t ID[Dhv/ROW], int *enc_stream, int 
  * size (input): number of data samples.
  */
 
-void searchUnit(int *enc_stream, int *labels_gmem, int EPOCH, int size, int *centerHV, int *centerHV_temp, float *norm2_inv, int iter_epoch, int iter_read) {
+void searchUnit(int *__restrict enc_stream, int *__restrict labels_gmem, int EPOCH, int size, int *__restrict centerHV, int *__restrict centerHV_temp, float *__restrict norm2_inv, int iter_epoch, int iter_read) {
 
 	//Explained previously: to read ROW encoding dimensions per cycle.
 	//To store the dot-product of the centroid classes with the encoding hypervector.
@@ -209,7 +210,7 @@ void searchUnit(int *enc_stream, int *labels_gmem, int EPOCH, int size, int *cen
 	}
 }
 
-void top(int *input_gmem, int *ID_gmem, int *labels_gmem, int EPOCH, int size) {
+void top(int *__restrict input_gmem, int *__restrict ID_gmem, int *__restrict labels_gmem, int EPOCH, int size) {
 
 	int feature_stream[N_FEAT_PAD];
 
@@ -255,7 +256,46 @@ void top(int *input_gmem, int *ID_gmem, int *labels_gmem, int EPOCH, int size) {
  * size (input): number of data samples.
  */
 
-void hd(int *input_gmem, std::size_t input_gmem_size, int *ID_gmem, std::size_t ID_gmem_size, int *labels_gmem, std::size_t labels_gmem_size, int EPOCH, int size) {
+void hd(int *__restrict input_gmem, std::size_t input_gmem_size, int *__restrict ID_gmem, std::size_t ID_gmem_size, int *__restrict labels_gmem, std::size_t labels_gmem_size, int EPOCH, int size) {
+#ifdef HPVM
+	void *root_Section = __hetero_section_begin();
+	void *root_Wrapper = __hetero_task_begin(
+					5,
+					input_gmem, input_gmem_size, 
+					ID_gmem, ID_gmem_size, 					
+					labels_gmem, labels_gmem_size,
+					EPOCH,
+					size,
+					3,
+					input_gmem, input_gmem_size, 
+					ID_gmem, ID_gmem_size, 					
+					labels_gmem, labels_gmem_size,
+					"root_task");
+
+	void *hd_Section = __hetero_section_begin();
+	void *hd_Wrapper = __hetero_task_begin(
+					5,
+					input_gmem, input_gmem_size, 
+					ID_gmem, ID_gmem_size, 					
+					labels_gmem, labels_gmem_size,
+					EPOCH,
+					size,
+					3,
+					input_gmem, input_gmem_size, 
+					ID_gmem, ID_gmem_size, 					
+					labels_gmem, labels_gmem_size,
+					"hd_task");
+	__hpvm__hint(DEVICE);
+#endif
+
 	top(input_gmem, ID_gmem, labels_gmem, EPOCH, size);
+
+#ifdef HPVM
+	__hetero_task_end(hd_Wrapper);
+	__hetero_section_end(hd_Section);
+
+	__hetero_task_end(root_Wrapper);
+	__hetero_section_end(root_Section);
+#endif
 }
 

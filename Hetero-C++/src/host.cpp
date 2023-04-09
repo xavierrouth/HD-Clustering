@@ -93,11 +93,28 @@ int main(int argc, char** argv)
 	auto buf_labels_size = labels_gmem.size() * sizeof(*buf_labels);
 
 	t_start = chrono::high_resolution_clock::now();
+#ifdef HPVM
+	void *HDTrainDFG = __hetero_launch(
+		(void *) hd,
+		5, 
+		buf_input, buf_input_size,
+		buf_ID, buf_ID_size,
+		buf_labels, buf_labels_size,
+		EPOCH,
+		N_SAMPLE,
+		3,
+		buf_input, buf_input_size,
+		buf_ID, buf_ID_size,
+		buf_labels, buf_labels_size
+	);
+	__hetero_wait(HDTrainDFG);
+#else
 	hd(buf_input, buf_input_size,
 	   buf_ID, buf_ID_size,
 	   buf_labels, buf_labels_size,
 	   EPOCH,
 	   N_SAMPLE);
+#endif
 	t_elapsed = chrono::high_resolution_clock::now() - t_start;
 	
 	mSec = chrono::duration_cast<chrono::milliseconds>(t_elapsed).count();
