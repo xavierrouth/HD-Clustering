@@ -35,7 +35,8 @@ int main(int argc, char** argv)
 	datasetBinaryRead(y_data, y_data_path);
 
 	int shuffle_arr[y_data.size()];
-	srand (time(NULL));
+	//srand (time(NULL));
+	srand(0);
 	if(shuffled){
 		vector<int> X_data_shuffled(X_data.size());
 		vector<int> y_data_shuffled(y_data.size());
