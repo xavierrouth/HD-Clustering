@@ -301,17 +301,30 @@ void hd(int *__restrict input_gmem, std::size_t input_gmem_size, int *__restrict
 
 #if 0
 void hd(int *__restrict input_gmem, std::size_t input_gmem_size, int *__restrict ID_gmem, std::size_t ID_gmem_size, int *__restrict labels_gmem, std::size_t labels_gmem_size, int EPOCH, int size) {
+	// Create random projection encoding matrix (see encodeUnit for exactly how this is done currently)
+	// Note, this hypermatrix may be too large to contain in memory all at once - encodeUnit (as far as I can tell) constructs it on
+	// the fly when encoding a hypervector - maybe this is a transforming the compiler will have to perform?
+	auto ID_hypervector = __hetero_hdc_create_hypervector(ID_gmem, ID_gmem_size / sizeof(int)); // just make a hypervector from a buffer
+	auto ID_hypermatric = __hetero_hdc_random_hypermatrix(ID_hypervector); // random_hypermatrix should take one hypervector as a seed
+
 	// Encode input using random projection
 	// padding_func basically replaces inputStream
-	// turn_seed_into_rp_matrix is part of what encodeUnit does
-	// (extrapolates single ID hypervector into matrix using bitshifting and such, see encodeUnit)
-	// The original implementation is streaming, so every following operation actually occurs for a set of hypervectors/hypermatrices, not just one
-	auto features_hypervectors = __hetero_hdc_create_hypervector(4, padding_func, input_gmem, input_gmem_size, N_FEAT, PAD);
-	auto ID_hypermatrices = __hetero_hdc_create_hypermatrix(2, turn_seed_into_rp_matrix, ID_gmem, ID_gmem_size);
-	auto encoded_hypervectors = __hetero_hdc_matmul(features, ID_matrix);
+	auto encoded_hypervectors[iter_read];
+	for (int iter_read = 0; iter_read < size; iter_read++) {
+		// See inputStream for the padding scheme
+		auto features_hypervector = __hetero_hdc_create_hypervector(4, padding_func, input_gmem + iter_read * N_FEAT_PAD, N_FEAT, PAD);
+		// Do encoding
+		encoded_hypervectors[iter_read] = __hetero_hdc_matmul(features, ID_matrix);
+	}
 
+	// Use first N_CENTER encoded hypervectors as initial cluster centers
 	auto clusters = __hetero_hdc_create_hypervectors(2, create_clusters, encoded_hypervectors, N_CENTER);
-	// Clustering operation (not in slideshow yet)?
-	clusters = __hetero_hdc_clustering(clusters, EPOCHS);
+	for (int iter_epoch = 0; iter_epoch < EPOCH; iter_epoch++) {
+		for (int iter_read = 0; iter_read < size; iter_read++) {
+			// __hetero_hdc_clustering isn't in slideshow yet? Look at comments in searchUnit to see what this might actually do
+			// (lines 183-209)
+			clusters = __hetero_hdc_clustering(clusters, encoded_hypervector[iter_read]);
+		}
+	}
 }
 #endif
