@@ -299,7 +299,7 @@ void hd(int *__restrict input_gmem, std::size_t input_gmem_size, int *__restrict
 #endif
 }
 
-#if 1
+#if 0
 void hd(int *__restrict input_gmem, std::size_t input_gmem_size, int *__restrict ID_gmem, std::size_t ID_gmem_size, int *__restrict labels_gmem, std::size_t labels_gmem_size, int EPOCH, int size) {
 	// Create random projection encoding matrix (see encodeUnit for exactly how this is done currently)
 	// Note, this hypermatrix may be too large to contain in memory all at once - encodeUnit (as far as I can tell) constructs it on
