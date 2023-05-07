@@ -299,11 +299,11 @@ void hd(int *__restrict input_gmem, std::size_t input_gmem_size, int *__restrict
 #endif
 }
 
-#if 0
+#if 1
 void hd(int *__restrict input_gmem, std::size_t input_gmem_size, int *__restrict ID_gmem, std::size_t ID_gmem_size, int *__restrict labels_gmem, std::size_t labels_gmem_size, int EPOCH, int size) {
 	// Create random projection encoding matrix (see encodeUnit for exactly how this is done currently)
 	// Note, this hypermatrix may be too large to contain in memory all at once - encodeUnit (as far as I can tell) constructs it on
-	// the fly when encoding a hypervector - maybe this is a transforming the compiler will have to perform?
+	// the fly when encoding a hypervector - maybe constructing that logic is a transformation the compiler will have to perform?
 	auto ID_hypervector = __hetero_hdc_create_hypervector(ID_gmem, ID_gmem_size / sizeof(int)); // just make a hypervector from a buffer
 	auto ID_hypermatric = __hetero_hdc_random_hypermatrix(ID_hypervector); // random_hypermatrix should take one hypervector as a seed
 
@@ -314,16 +314,20 @@ void hd(int *__restrict input_gmem, std::size_t input_gmem_size, int *__restrict
 		// See inputStream for the padding scheme
 		auto features_hypervector = __hetero_hdc_create_hypervector(4, padding_func, input_gmem + iter_read * N_FEAT_PAD, N_FEAT, PAD);
 		// Do encoding
-		encoded_hypervectors[iter_read] = __hetero_hdc_matmul(features, ID_matrix);
+		encoded_hypervectors[iter_read] = __hetero_hdc_matmul(features_hypervector, ID_matrix); // This seems backwards?
 	}
 
 	// Use first N_CENTER encoded hypervectors as initial cluster centers
-	auto clusters = __hetero_hdc_create_hypervectors(2, create_clusters, encoded_hypervectors, N_CENTER);
+	auto clusters[N_CENTER];
+	for (int iter_center = 0; iter_center < N_CENTER; ++iter_center) {
+ 		clusters[iter_center] = encoded_hypervectors[iter_center];
+	}
+	// Do clustering
 	for (int iter_epoch = 0; iter_epoch < EPOCH; iter_epoch++) {
 		for (int iter_read = 0; iter_read < size; iter_read++) {
 			// __hetero_hdc_clustering isn't in slideshow yet? Look at comments in searchUnit to see what this might actually do
-			// (lines 183-209)
-			clusters = __hetero_hdc_clustering(clusters, encoded_hypervector[iter_read]);
+			// (lines 183-209, takes in one encoded hypervector at a time)
+			clusters = __hetero_hdc_clustering(clusters, N_CENTER, encoded_hypervector[iter_read]);
 		}
 	}
 }
