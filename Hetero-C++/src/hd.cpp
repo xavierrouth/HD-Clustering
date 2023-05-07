@@ -299,3 +299,19 @@ void hd(int *__restrict input_gmem, std::size_t input_gmem_size, int *__restrict
 #endif
 }
 
+#if 0
+void hd(int *__restrict input_gmem, std::size_t input_gmem_size, int *__restrict ID_gmem, std::size_t ID_gmem_size, int *__restrict labels_gmem, std::size_t labels_gmem_size, int EPOCH, int size) {
+	// Encode input using random projection
+	// padding_func basically replaces inputStream
+	// turn_seed_into_rp_matrix is part of what encodeUnit does
+	// (extrapolates single ID hypervector into matrix using bitshifting and such, see encodeUnit)
+	// The original implementation is streaming, so every following operation actually occurs for a set of hypervectors/hypermatrices, not just one
+	auto features_hypervectors = __hetero_hdc_create_hypervector(4, padding_func, input_gmem, input_gmem_size, N_FEAT, PAD);
+	auto ID_hypermatrices = __hetero_hdc_create_hypermatrix(2, turn_seed_into_rp_matrix, ID_gmem, ID_gmem_size);
+	auto encoded_hypervectors = __hetero_hdc_matmul(features, ID_matrix);
+
+	auto clusters = __hetero_hdc_create_hypervectors(2, create_clusters, encoded_hypervectors, N_CENTER);
+	// Clustering operation (not in slideshow yet)?
+	clusters = __hetero_hdc_clustering(clusters, EPOCHS);
+}
+#endif
