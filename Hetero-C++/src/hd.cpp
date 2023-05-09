@@ -342,11 +342,10 @@ void hd(int *__restrict input_gmem, std::size_t input_gmem_size, int *__restrict
 	auto ID_hypermatrix = __hetero_hdc_random_hypermatrix<1, ID_gmem_size / sizeof(int), int>(); // random_hypermatrix should take one hypervector as a seed
 
 	// Encode input using random projection
-	// padding_func basically replaces inputStream
 	auto encoded_hypervectors[size];
 	for (int iter_read = 0; iter_read < size; iter_read++) {
 		// See inputStream for the padding scheme
-		auto features_hypervector = __hetero_hdc_create_hypervector(4, padding_func, input_gmem + iter_read * N_FEAT_PAD, N_FEAT, PAD);
+		auto features_hypervector = __hetero_hdc_create_hypervector(4, inputStream, input_gmem + iter_read * N_FEAT_PAD, N_FEAT, PAD);
 		// Do encoding
 		encoded_hypervectors[iter_read] = __hetero_hdc_matmul(features_hypervector, ID_hypermatrix); // This seems backwards?
 	}
