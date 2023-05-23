@@ -348,6 +348,14 @@ void hd(int *__restrict input_gmem, std::size_t input_gmem_size, int *__restrict
 		auto features_hypervector = __hetero_hdc_create_hypervector(4, inputStream, input_gmem + iter_read * N_FEAT_PAD, N_FEAT, PAD);
 		// Do encoding
 		encoded_hypervectors[iter_read] = __hetero_hdc_matmul(features_hypervector, ID_hypermatrix); // This seems backwards?
+
+        // According to RP, should this binarize the output of the matrix multiplication?
+        // i.e.:
+        /*
+		auto product_hv = __hetero_hdc_matmul(features_hypervector, ID_hypermatrix); // This seems backwards?
+        encoded_hypervectors[iter_read] = __hetero_hdc_sign(product_hv);
+
+        */
 	}
 
 	// Use first N_CENTER encoded hypervectors as initial cluster centers
