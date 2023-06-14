@@ -336,9 +336,8 @@ void hd(int *__restrict input_gmem, std::size_t input_gmem_size, int *__restrict
 
 
 
-#if 0
 // Modified version of the function implemented by Russel 
-void hd(int *__restrict input_gmem, std::size_t input_gmem_size, int *__restrict ID_gmem, std::size_t ID_gmem_size, int *__restrict labels_gmem, std::size_t labels_gmem_size, int EPOCH, int size) {
+void hd_hcc(int *__restrict input_gmem, std::size_t input_gmem_size, int *__restrict ID_gmem, std::size_t ID_gmem_size, int *__restrict labels_gmem, std::size_t labels_gmem_size, int EPOCH, int size) {
 	auto ID_hypermatrix = __hetero_hdc_random_hypermatrix<1, ID_gmem_size / sizeof(int), int>(); // random_hypermatrix should take one hypervector as a seed
 
 	// Encode input using random projection
@@ -346,16 +345,11 @@ void hd(int *__restrict input_gmem, std::size_t input_gmem_size, int *__restrict
 	for (int iter_read = 0; iter_read < size; iter_read++) {
 		// See inputStream for the padding scheme
 		auto features_hypervector = __hetero_hdc_create_hypervector(4, inputStream, input_gmem + iter_read * N_FEAT_PAD, N_FEAT, PAD);
+        auto sign_vector = __hetero_hdc_sign(features_hypervector);
+        auto signed_features_hypervector = sign_vector * features_hypervector;
 		// Do encoding
-		encoded_hypervectors[iter_read] = __hetero_hdc_matmul(features_hypervector, ID_hypermatrix); // This seems backwards?
+		encoded_hypervectors[iter_read] = __hetero_hdc_matmul(signed_features_hypervector, ID_hypermatrix); 
 
-        // According to RP, should this binarize the output of the matrix multiplication?
-        // i.e.:
-        /*
-		auto product_hv = __hetero_hdc_matmul(features_hypervector, ID_hypermatrix); // This seems backwards?
-        encoded_hypervectors[iter_read] = __hetero_hdc_sign(product_hv);
-
-        */
 	}
 
 	// Use first N_CENTER encoded hypervectors as initial cluster centers
@@ -372,4 +366,3 @@ void hd(int *__restrict input_gmem, std::size_t input_gmem_size, int *__restrict
 		}
 	}
 }
-#endif
