@@ -1,10 +1,10 @@
 #ifdef HPVM
 #include <heterocc.h>
+#include <hpvm_hdc.hpp>
+#include "DFG.hpp"
 #endif
 #include "host.h"
 #include "hd.h"
-
-using namespace std;
 
 #define DUMP(vec, suffix) {\
   FILE *f = fopen("dump/" #vec suffix, "w");\
@@ -13,7 +13,7 @@ using namespace std;
 }
 
 void datasetBinaryRead(vector<int> &data, string path){
-	ifstream file_(path, ios::in | ios::binary);
+	std::ifstream file_(path, ios::in | ios::binary);
 	assert(file_.is_open() && "Couldn't open file!");
 	int32_t size;
 	file_.read((char*)&size, sizeof(size));
@@ -28,18 +28,21 @@ void datasetBinaryRead(vector<int> &data, string path){
 int main(int argc, char** argv)
 {
 	auto t_start = chrono::high_resolution_clock::now();
+	std::cout << "Main Starting" << std::endl;
    
-	vector<int> X_data;
-	vector<int> y_data;
+	std::vector<int> X_data;
+	std::vector<int> y_data;
 	datasetBinaryRead(X_data, X_data_path);
 	datasetBinaryRead(y_data, y_data_path);
 
+	std::cout << "Read Data Starting" << std::endl;
 	int shuffle_arr[y_data.size()];
 	//srand (time(NULL));
+	
 	srand(0);
 	if(shuffled){
-		vector<int> X_data_shuffled(X_data.size());
-		vector<int> y_data_shuffled(y_data.size());
+		std::vector<int> X_data_shuffled(X_data.size());
+		std::vector<int> y_data_shuffled(y_data.size());
 		for(int i = 0; i < y_data.size(); i++)
 			shuffle_arr[i] = i;
 		//shuffle
@@ -60,30 +63,44 @@ int main(int argc, char** argv)
 		y_data = y_data_shuffled;
 	}	
 	
-	int N_SAMPLE = y_data.size();
+	//int N_SAMPLE = y_data.size();
+	assert(N_SAMPLE == y_data.size());
 	int input_int = X_data.size();
 	 
-	vector<int, aligned_allocator<int>> input_gmem(input_int);
-	for (int i = 0; i < input_int; ++i) {
-		input_gmem[i] = X_data[i];
-	}
-	vector<int, aligned_allocator<int>> labels_gmem(N_SAMPLE);
+	std::vector<int> input_data = X_data;
+	std::vector<int> labels(N_SAMPLE);
+
+	__hypermatrix__<N_FEAT, Dhv, int> rp_matrix;
+
+	__hypervector__<Dhv, int>::v rp_seed;
 
 	//We need a seed ID. To generate in a random yet determenistic (for later debug purposes) fashion, we use bits of log2 as some random stuff.
-	vector<int, aligned_allocator<int>> ID_gmem(Dhv/32);
 	srand(time(NULL));
 	for(int i = 0; i < Dhv/32; i++){
-                long double temp = log2(i+2.5) * pow(2, 31);
+        long double temp = log2(i+2.5) * pow(2, 31);
 		long long int temp2 = (long long int)(temp);
 		temp2 = temp2 % 2147483648;
-		ID_gmem[i] = (int) temp2;
-		//ID_gmem[i] = int(rand());
+		for (int j = 0; j < 32; j++) {
+			int ele = temp2 && (0x01 << j);
+			if (ele == 0) {
+				rp_seed[i * 32 + j] = -1;
+			}
+			else {
+				rp_seed[i * 32 + j] = 1;
+			}
+		}
+	}
+
+	// Generate the random projection matrix.
+	for (int i = 0; i < N_FEAT; i++) {
+		__hypervector__<Dhv, int> temp = __hetero_hdc_wrap_shift<Dhv, int>(rp_seed,i);
+		__hetero_hdc_set_matrix_row<N_FEAT, Dhv, int>(rp_matrix, temp, i);
 	}
 
 	auto t_elapsed = chrono::high_resolution_clock::now() - t_start;
 	long mSec = chrono::duration_cast<chrono::milliseconds>(t_elapsed).count();
 	long mSec1 = mSec;
-	///cout << "Reading data took " << mSec << " mSec" << endl;
+	std::cout << "Reading data took " << mSec << " mSec" << std::endl;
 
 	auto buf_input = input_gmem.data();
 	auto buf_ID = ID_gmem.data();
@@ -93,21 +110,34 @@ int main(int argc, char** argv)
 	auto buf_labels_size = labels_gmem.size() * sizeof(*buf_labels);
 
 	t_start = chrono::high_resolution_clock::now();
+
+	// Not inputs or outputs to computation:
+	// Do these need to be malloced?
+	__hypermatrix__<Dhv, binary> encoded_hv;
+	size_t encoded_hvs_size = Dhv * sizeof(int);
+
+	__hypermatrix__<N_CENTER, Dhv, binary> clusters;
+	size_t clusters_size = N_CENTER * Dhv * sizeof(int);
+
+	__hypermatrix__<N_CENTER, Dhv, binary> clusters_temp;
+
+	
 #ifdef HPVM
-	void *HDTrainDFG = __hetero_launch(
-		(void *) hd,
-		5, 
+	for (int i = 0; i < num_iterations; i++) {
+		for (int j = 0; j < )
+	}
+	void *DFG = __hetero_launch(
+		(void *)root_node<Dhv, N_CENTER, N_SAMPLE, N_FEAT, int>,
+		5,
+		buf_ID, buf_ID_size, 
 		buf_input, buf_input_size,
-		buf_ID, buf_ID_size,
 		buf_labels, buf_labels_size,
-		EPOCH,
-		N_SAMPLE,
-		3,
-		buf_input, buf_input_size,
-		buf_ID, buf_ID_size,
+		&encoded_hvs, encoded_hvs_size,
+		&clusters, clusters_size,
+		1,
 		buf_labels, buf_labels_size
 	);
-	__hetero_wait(HDTrainDFG);
+	__hetero_wait(DFG);
 #else
 	hd(buf_input, buf_input_size,
 	   buf_ID, buf_ID_size,

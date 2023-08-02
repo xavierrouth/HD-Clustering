@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <cstdlib>
 
+#define N_SAMPLE 		6238// Number of HVs in input dataset
 #define N_FEAT			617	//feature per input (e.g., isolet: 617)
 #define N_CENTER		26	//number of classes. (e.g., isolet: 26)
 #define Dhv				2048 //hypervectors length

@@ -1,25 +1,9 @@
 #ifdef HPVM
 #include <heterocc.h>
+#include <hpvm_hdc.hpp>
+#include "DFG.hpp"
 #endif
 #include "hd.h"
-
-/*
- * inputStream fetches input features as ints, and streames to the next functions.
- *
- * input_gmem (input): input data port; each feature is quantized to an integer.
- * feature_stream (output): N_FEAT_PAD parallel streams to stream the data to the next module.
- * size (input): number of data sampels.
- */
-void inputStream(int *__restrict input_gmem, int *__restrict feature_stream, int EPOCH, int size, int iter_epoch, int iter_read) {
-	 //Need to move the pointer by intPerInput after each input
-	int offset = iter_read * N_FEAT;
-	for (int i = 0; i < N_FEAT; i++) {
-		feature_stream[i] = input_gmem[offset + i];
-	}
-	for (int i = 0; i < PAD; i++) {
-		feature_stream[N_FEAT + i] = 0;
-	}
-}
 
 /*
  * encodeUnit reads input features from the stream and obtains encoding hypervector using random projection (RP) algorithm.
@@ -257,112 +241,9 @@ void top(int *__restrict input_gmem, int *__restrict ID_gmem, int *__restrict la
  */
 
 void hd(int *__restrict input_gmem, std::size_t input_gmem_size, int *__restrict ID_gmem, std::size_t ID_gmem_size, int *__restrict labels_gmem, std::size_t labels_gmem_size, int EPOCH, int size) {
-#ifdef HPVM
-	void *root_Section = __hetero_section_begin();
-	void *root_Wrapper = __hetero_task_begin(
-					5,
-					input_gmem, input_gmem_size, 
-					ID_gmem, ID_gmem_size, 					
-					labels_gmem, labels_gmem_size,
-					EPOCH,
-					size,
-					3,
-					input_gmem, input_gmem_size, 
-					ID_gmem, ID_gmem_size, 					
-					labels_gmem, labels_gmem_size,
-					"root_task");
 
-	void *hd_Section = __hetero_section_begin();
-	void *hd_Wrapper = __hetero_task_begin(
-					5,
-					input_gmem, input_gmem_size, 
-					ID_gmem, ID_gmem_size, 					
-					labels_gmem, labels_gmem_size,
-					EPOCH,
-					size,
-					3,
-					input_gmem, input_gmem_size, 
-					ID_gmem, ID_gmem_size, 					
-					labels_gmem, labels_gmem_size,
-					"hd_task");
-	__hpvm__hint(DEVICE);
-#endif
 
 	top(input_gmem, ID_gmem, labels_gmem, EPOCH, size);
 
-#ifdef HPVM
-	__hetero_task_end(hd_Wrapper);
-	__hetero_section_end(hd_Section);
 
-	__hetero_task_end(root_Wrapper);
-	__hetero_section_end(root_Section);
-#endif
-}
-
-#if 0
-void hd(int *__restrict input_gmem, std::size_t input_gmem_size, int *__restrict ID_gmem, std::size_t ID_gmem_size, int *__restrict labels_gmem, std::size_t labels_gmem_size, int EPOCH, int size) {
-	// Create random projection encoding matrix (see encodeUnit for exactly how this is done currently)
-	// Note, this hypermatrix may be too large to contain in memory all at once - encodeUnit (as far as I can tell) constructs it on
-	// the fly when encoding a hypervector - maybe constructing that logic is a transformation the compiler will have to perform?
-	auto ID_hypervector = __hetero_hdc_create_hypervector(ID_gmem, ID_gmem_size / sizeof(int)); // just make a hypervector from a buffer
-	auto ID_hypermatric = __hetero_hdc_random_hypermatrix(ID_hypervector); // random_hypermatrix should take one hypervector as a seed
-
-	// Encode input using random projection
-	// padding_func basically replaces inputStream
-	auto encoded_hypervectors[iter_read];
-	for (int iter_read = 0; iter_read < size; iter_read++) {
-		// See inputStream for the padding scheme
-		auto features_hypervector = __hetero_hdc_create_hypervector(4, padding_func, input_gmem + iter_read * N_FEAT_PAD, N_FEAT, PAD);
-		// Do encoding
-		encoded_hypervectors[iter_read] = __hetero_hdc_matmul(features_hypervector, ID_matrix); // This seems backwards?
-	}
-
-	// Use first N_CENTER encoded hypervectors as initial cluster centers
-	auto clusters[N_CENTER];
-	for (int iter_center = 0; iter_center < N_CENTER; ++iter_center) {
- 		clusters[iter_center] = encoded_hypervectors[iter_center];
-	}
-	// Do clustering
-	for (int iter_epoch = 0; iter_epoch < EPOCH; iter_epoch++) {
-		for (int iter_read = 0; iter_read < size; iter_read++) {
-			// __hetero_hdc_clustering isn't in slideshow yet? Look at comments in searchUnit to see what this might actually do
-			// (lines 183-209, takes in one encoded hypervector at a time)
-			clusters = __hetero_hdc_clustering(clusters, N_CENTER, encoded_hypervector[iter_read]);
-		}
-	}
-}
-#endif
-
-
-
-
-// Modified version of the function implemented by Russel 
-void hd_hcc(int *__restrict input_gmem, std::size_t input_gmem_size, int *__restrict ID_gmem, std::size_t ID_gmem_size, int *__restrict labels_gmem, std::size_t labels_gmem_size, int EPOCH, int size) {
-	auto ID_hypermatrix = __hetero_hdc_random_hypermatrix<1, ID_gmem_size / sizeof(int), int>(); // random_hypermatrix should take one hypervector as a seed
-
-	// Encode input using random projection
-	auto encoded_hypervectors[size];
-	for (int iter_read = 0; iter_read < size; iter_read++) {
-		// See inputStream for the padding scheme
-		auto features_hypervector = __hetero_hdc_create_hypervector(4, inputStream, input_gmem + iter_read * N_FEAT_PAD, N_FEAT, PAD);
-        auto sign_vector = __hetero_hdc_sign(features_hypervector);
-        auto signed_features_hypervector = sign_vector * features_hypervector;
-		// Do encoding
-		encoded_hypervectors[iter_read] = __hetero_hdc_matmul(signed_features_hypervector, ID_hypermatrix); 
-
-	}
-
-	// Use first N_CENTER encoded hypervectors as initial cluster centers
-	auto clusters[N_CENTER];
-	for (int iter_center = 0; iter_center < N_CENTER; ++iter_center) {
- 		clusters[iter_center] = encoded_hypervectors[iter_center];
-	}
-	// Do clustering
-	for (int iter_epoch = 0; iter_epoch < EPOCH; iter_epoch++) {
-		for (int iter_read = 0; iter_read < size; iter_read++) {
-			// Look at comments in searchUnit to see what this might actually do
-			// (lines 183-209, takes in one encoded hypervector at a time)
-			clusters = __hetero_hdc_clustering(clusters, N_CENTER, encoded_hypervector[iter_read]);
-		}
-	}
 }
