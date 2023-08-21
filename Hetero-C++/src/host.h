@@ -30,7 +30,9 @@ struct aligned_allocator
 
 #define N_CENTER		26	//number of centers. (e.g., isolet: 26,)
 #define N_FEAT			617	//feature per input (e.g., isolet: 617)
-#define Dhv				2048  //hypervectors length
+#define Dhv				  32  //hypervectors length
+#define N_SAMPLE 		6238
+
 int EPOCH = 5;
 bool shuffled = false;
 std::string X_data_path = "../dataset/isolet_train_trainX.bin";

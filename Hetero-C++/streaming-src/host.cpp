@@ -2,7 +2,7 @@
 
 #ifdef HPVM
 #include <heterocc.h>
-#include <hpvm_hdc.hpp>
+#include <hpvm_hdc.h>
 #include "DFG.hpp"
 #endif
 #include "host.h"
@@ -16,12 +16,12 @@
 }
 
 template <int N, typename elemTy>
-void print_hv(typename __hypervector__<N, elemTy>::v hv) {
+void print_hv(__hypervector__<N, elemTy> hv) {
     std::cout << "[";
     for (int i = 0; i < N-1; i++) {
-        std::cout << hv[i] << ", ";
+        std::cout << hv[0][i] << ", ";
     }
-    std::cout << hv[N-1] << "]\n";
+    std::cout << hv[0][N-1] << "]\n";
     return;
 }
 
@@ -81,10 +81,12 @@ int main(int argc, char** argv)
 	
 	assert(N_SAMPLE == y_data.size());
 	 
-	int* input_vector = X_data.data();
-	size_t input_vector_size = N_FEAT * sizeof(int); 
+	int* input_vectors = X_data.data();
+	// N_FEAT is number of entries per vector
+	size_t input_vector_size = N_FEAT * sizeof(int); // Size of a single vector
 
 	int labels[N_SAMPLE]; // Does this need to be malloced?
+	// N_SAMPLE is number of input vectors
 	size_t labels_size = N_SAMPLE * sizeof(int);
 
 	auto t_elapsed = std::chrono::high_resolution_clock::now() - t_start;
@@ -94,23 +96,26 @@ int main(int argc, char** argv)
 
 	t_start = std::chrono::high_resolution_clock::now();
 
-	
 	// Not inputs or outputs to computation:
 	// Do these need to be malloced?
-	__hypervector__<Dhv, int>::v encoded_hv;
-	int* encoded_hv_ptr = (int*)&encoded_hv;
+	__hypervector__<Dhv, int> encoded_hv;
+	__hypervector__<Dhv, int>* encoded_hv_ptr = &encoded_hv;
 	size_t encoded_hv_size = Dhv * sizeof(int);
+  
+	__hypervector__<Dhv, int> cluster;
+	__hypervector__<Dhv, int>* cluster_ptr = &cluster;
+	size_t cluster_size = Dhv* sizeof(int);
 
 	__hypermatrix__<N_CENTER, Dhv, int> clusters;
-	int* clusters_ptr = (int*)&clusters;
+	__hypermatrix__<N_CENTER, Dhv, int>* clusters_ptr = &clusters;
 	size_t clusters_size = N_CENTER * Dhv * sizeof(int);
 
 	__hypermatrix__<N_CENTER, Dhv, int> clusters_temp;
-	int* clusters_temp_ptr = (int*)&clusters_temp;
+	__hypermatrix__<N_CENTER, Dhv, int>* clusters_temp_ptr = &clusters_temp;
 
 	// Does this need to be malloced?
-	__hypermatrix__<N_FEAT, Dhv, int> rp_matrix;
-	int* rp_matrix_ptr = (int*)&rp_matrix;
+	__hypermatrix__<Dhv, N_FEAT, int> rp_matrix;
+	__hypermatrix__<Dhv, N_FEAT, int>* rp_matrix_ptr = &rp_matrix;
 	size_t rp_matrix_size = N_FEAT * Dhv * sizeof(int);
 
 	__hypervector__<Dhv, int> rp_seed;
@@ -126,24 +131,31 @@ int main(int argc, char** argv)
 			int ele = temp & (1 << j); //temp2 && (0x01 << j);
 			std::cout << ele << std::endl;
 			if (temp & (1 << j)) {
-				rp_seed[i * 32 + j] = 1;
+				rp_seed[0][i * 32 + j] = 1;
 			}
 			else {
-				rp_seed[i * 32 + j] = -1;
+				rp_seed[0][i * 32 + j] = -1;
 			}
 		}
 	}
 	print_hv<Dhv, int>(rp_seed);
 	std::cout << "After seed generation\n";
 
-	// Dhv needs to be greater than N_FEAT  for the orthognality to hold.
-	// 
-	// Generate the random projection matrix.
-	for (int i = 0; i < N_FEAT; i++) {
-		__hypervector__<Dhv, int> temp = __hetero_hdc_wrap_shift<Dhv, int>(rp_seed,i);
-		
-		__hetero_hdc_set_matrix_row<N_FEAT, Dhv, int>(rp_matrix, temp, i);
-		print_hv<Dhv, int>(temp);
+	// Dhv needs to be greater than N_FEAT for the orthognality to hold.
+
+	// Generate the random projection matrix. Dhv rows, N_FEAT cols, so Dhv x N_FEAT.
+	// __hetero_hdc_set_matrix_col would be a lot easier.
+	// May need to use a __hetero_hdc_set_matrix_col() here;
+	__hypervector__<N_FEAT, int> row = __hetero_hdc_hypervector<N_FEAT, int>();
+	__hypervector__<Dhv, int> temp = __hetero_hdc_hypervector<Dhv, int>();
+
+	for (int j = 0; j < Dhv; j++) { // Rows
+		for (int i = 0; i < N_FEAT; i++) { //Cols
+			temp = __hetero_hdc_wrap_shift<Dhv, int>(rp_seed, i);
+			row[0][i] = temp[0][j];
+		}
+		//print_hv<N_FEAT, int>(row);
+		__hetero_hdc_set_matrix_row<Dhv, N_FEAT, int>(rp_matrix, row, j); 
 	}
 
 
@@ -156,30 +168,31 @@ int main(int argc, char** argv)
 			2 + 1,
 			/* Input Buffers: 2*/ 
 			rp_matrix_ptr, rp_matrix_size, //false,
-			&input_vector[k * N_FEAT], input_vector_size,
+			&input_vectors[k * N_FEAT], input_vector_size,
 			/* Output Buffers: 1*/ 
-			&clusters_ptr[k * Dhv], encoded_hv_size,  //false,
+			cluster_ptr, cluster_size,  //false,
 			1,
-			&clusters_ptr[k * Dhv], encoded_hv_size //false
+			cluster_ptr, cluster_size //false
 		);
 
 		__hetero_wait(initialize_DFG);
-		__hypervector__<Dhv, int> cluster = *(__hypervector__<Dhv, int>::v*)&clusters_ptr[k*Dhv];
+
+		__hetero_hdc_set_matrix_row<N_CENTER, Dhv, int>(*clusters_ptr, *cluster_ptr, k);
+
+		__hypervector__<Dhv, int> cluster_temp = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, int>(*clusters_ptr, N_CENTER, Dhv, k);
 		std::cout << k << " ";
-		//print_hv<Dhv, int>(cluster);
+		print_hv<Dhv, int>(cluster_temp);
 	}
 	// Print the encoded clusters
 
 	// Start doing the clustering.
 
 	// Launch the DFG
-	
 
-	
 	// Do streaming.
 	
 	/***/
-	#if 1
+	#if 0
 	for (int i = 0; i < EPOCH; i++) {
 		// Is it valid to call __hetero_wait multiple times?
 		// Can we normalize the hypervectors here or do we have to do that in the DFG.
@@ -189,10 +202,10 @@ int main(int argc, char** argv)
 				(void*) root_node<Dhv, N_CENTER, N_SAMPLE, N_FEAT>,
 				/* Input Buffers: 5*/ 5 + 1,
 				rp_matrix_ptr, rp_matrix_size, //false,
-				&input_vector[j * N_FEAT], input_vector_size, //true,
+				&input_vectors[j * N_FEAT], input_vector_size, //true,
 				encoded_hv_ptr, encoded_hv_size,// false,
-				&clusters_ptr[0], clusters_size, //false,
-				&clusters_temp_ptr[0], clusters_size, //false,
+				clusters_ptr, clusters_size, //false,
+				clusters_temp_ptr, clusters_size, //false,
 				/* Output Buffers: 2*/ 
 				labels, labels_size,
 				1,
@@ -206,7 +219,7 @@ int main(int argc, char** argv)
 		// Calcualte eucl maginutde of each cluster HV before copying it over?.
 		for (int k = 0; k < N_CENTER; k++) {
 			// set temp_clusters -> clusters
-			__hypervector__<Dhv, int> cluster = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, int>(clusters_temp, k);
+			__hypervector__<Dhv, int> cluster = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, int>(clusters_temp, N_CENTER, Dhv, k);
 			// Normalize or sign?
 			__hypervector__<Dhv, int> cluster_norm = __hetero_hdc_sign<Dhv, int>(cluster);
 			__hetero_hdc_set_matrix_row(clusters, cluster_norm, k);

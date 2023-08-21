@@ -1,10 +1,13 @@
+#define HPVM 1
+
 #ifdef HPVM
 #include <heterocc.h>
-#include <hpvm_hdc.hpp>
+#include <hpvm_hdc.h>
 #include "DFG.hpp"
 #endif
 #include "host.h"
-#include "hd.h"
+#include <vector>
+#include <cassert>
 
 #define DUMP(vec, suffix) {\
   FILE *f = fopen("dump/" #vec suffix, "w");\
@@ -12,8 +15,18 @@
   if (f) fclose(f);\
 }
 
-void datasetBinaryRead(vector<int> &data, string path){
-	std::ifstream file_(path, ios::in | ios::binary);
+template <int N, typename elemTy>
+void print_hv(__hypervector__<N, elemTy> hv) {
+    std::cout << "[";
+    for (int i = 0; i < N-1; i++) {
+        std::cout << hv[0][i] << ", ";
+    }
+    std::cout << hv[0][N-1] << "]\n";
+    return;
+}
+
+void datasetBinaryRead(std::vector<int> &data, std::string path){
+	std::ifstream file_(path, std::ios::in | std::ios::binary);
 	assert(file_.is_open() && "Couldn't open file!");
 	int32_t size;
 	file_.read((char*)&size, sizeof(size));
@@ -27,8 +40,10 @@ void datasetBinaryRead(vector<int> &data, string path){
 
 int main(int argc, char** argv)
 {
-	auto t_start = chrono::high_resolution_clock::now();
+	auto t_start = std::chrono::high_resolution_clock::now();
 	std::cout << "Main Starting" << std::endl;
+
+	srand(time(NULL));
    
 	std::vector<int> X_data;
 	std::vector<int> y_data;
@@ -40,6 +55,7 @@ int main(int argc, char** argv)
 	//srand (time(NULL));
 	
 	srand(0);
+	// Does this shuffle features within a datapoint or datapoints within every entry.
 	if(shuffled){
 		std::vector<int> X_data_shuffled(X_data.size());
 		std::vector<int> y_data_shuffled(y_data.size());
@@ -50,7 +66,7 @@ int main(int argc, char** argv)
 			int j = rand()%i;
 			int temp = shuffle_arr[i];
 			shuffle_arr[i] = shuffle_arr[j];
-			shuffle_arr[j] = temp;
+			shuffle_arr[j] = temp;  
 		}
 
 		for(int i = 0; i < y_data.size(); i++){
@@ -63,91 +79,115 @@ int main(int argc, char** argv)
 		y_data = y_data_shuffled;
 	}	
 	
-	//int N_SAMPLE = y_data.size();
 	assert(N_SAMPLE == y_data.size());
-	int input_int = X_data.size();
 	 
-	std::vector<int> input_data = X_data;
-	std::vector<int> labels(N_SAMPLE);
+	int* input_vector = X_data.data();
+	size_t input_vector_size = N_FEAT * sizeof(int); 
 
+	int labels[N_SAMPLE]; // Does this need to be malloced?
+	size_t labels_size = N_SAMPLE * sizeof(int);
+
+	auto t_elapsed = std::chrono::high_resolution_clock::now() - t_start;
+	long mSec = std::chrono::duration_cast<std::chrono::milliseconds>(t_elapsed).count();
+	long mSec1 = mSec;
+	std::cout << "Reading data took " << mSec << " mSec" << std::endl;
+
+	t_start = std::chrono::high_resolution_clock::now();
+
+	// Not inputs or outputs to computation:
+	// Do these need to be malloced?
+	__hypervector__<Dhv, int> encoded_hv;
+	__hypervector__<Dhv, int>* encoded_hv_ptr = &encoded_hv;
+	size_t encoded_hv_size = Dhv * sizeof(int);
+
+	__hypermatrix__<N_CENTER, Dhv, int> clusters;
+	__hypermatrix__<N_CENTER, Dhv, int>* clusters_ptr = &clusters;
+	size_t clusters_size = N_CENTER * Dhv * sizeof(int);
+
+	__hypermatrix__<N_CENTER, Dhv, int> clusters_temp;
+	__hypermatrix__<N_CENTER, Dhv, int>* clusters_temp_ptr = &clusters_temp;
+
+	// Does this need to be malloced?
 	__hypermatrix__<N_FEAT, Dhv, int> rp_matrix;
+	__hypermatrix__<N_FEAT, Dhv, int>* rp_matrix_ptr = &rp_matrix;
+	size_t rp_matrix_size = N_FEAT * Dhv * sizeof(int);
 
-	__hypervector__<Dhv, int>::v rp_seed;
-
+	__hypervector__<Dhv, int> rp_seed;
+	std::cout << "Dimension over 32" << Dhv/32 << std::endl;
 	//We need a seed ID. To generate in a random yet determenistic (for later debug purposes) fashion, we use bits of log2 as some random stuff.
-	srand(time(NULL));
 	for(int i = 0; i < Dhv/32; i++){
-        long double temp = log2(i+2.5) * pow(2, 31);
-		long long int temp2 = (long long int)(temp);
-		temp2 = temp2 % 2147483648;
+		
+        //long double temp = log2(i+2.5) * pow(2, 31);
+		//long long int temp2 = (long long int)(temp);
+		//temp2 = temp2 % 2147483648; //2^31
+		int temp = int(rand());
 		for (int j = 0; j < 32; j++) {
-			int ele = temp2 && (0x01 << j);
-			if (ele == 0) {
-				rp_seed[i * 32 + j] = -1;
+			int ele = temp & (1 << j); //temp2 && (0x01 << j);
+			std::cout << ele << std::endl;
+			if (temp & (1 << j)) {
+				rp_seed[0][i * 32 + j] = 1;
 			}
 			else {
-				rp_seed[i * 32 + j] = 1;
+				rp_seed[0][i * 32 + j] = -1;
 			}
 		}
 	}
+	print_hv<Dhv, int>(rp_seed);
+	std::cout << "After seed generation\n";
+
+	// Dhv needs to be greater than N_FEAT for the orthognality to hold.
 
 	// Generate the random projection matrix.
 	for (int i = 0; i < N_FEAT; i++) {
 		__hypervector__<Dhv, int> temp = __hetero_hdc_wrap_shift<Dhv, int>(rp_seed,i);
+		
 		__hetero_hdc_set_matrix_row<N_FEAT, Dhv, int>(rp_matrix, temp, i);
+		//print_hv<Dhv, int>(temp);
 	}
 
-	auto t_elapsed = chrono::high_resolution_clock::now() - t_start;
-	long mSec = chrono::duration_cast<chrono::milliseconds>(t_elapsed).count();
-	long mSec1 = mSec;
-	std::cout << "Reading data took " << mSec << " mSec" << std::endl;
 
-	auto buf_input = input_gmem.data();
-	auto buf_ID = ID_gmem.data();
-	auto buf_labels = labels_gmem.data();
-	auto buf_input_size = input_gmem.size() * sizeof(*buf_input);
-	auto buf_ID_size = ID_gmem.size() * sizeof(*buf_ID);
-	auto buf_labels_size = labels_gmem.size() * sizeof(*buf_labels);
-
-	t_start = chrono::high_resolution_clock::now();
-
-	// Not inputs or outputs to computation:
-	// Do these need to be malloced?
-	__hypermatrix__<Dhv, binary> encoded_hv;
-	size_t encoded_hvs_size = Dhv * sizeof(int);
-
-	__hypermatrix__<N_CENTER, Dhv, binary> clusters;
-	size_t clusters_size = N_CENTER * Dhv * sizeof(int);
-
-	__hypermatrix__<N_CENTER, Dhv, binary> clusters_temp;
-
-	
 #ifdef HPVM
-	for (int i = 0; i < num_iterations; i++) {
-		for (int j = 0; j < )
-	}
-	void *DFG = __hetero_launch(
-		(void *)root_node<Dhv, N_CENTER, N_SAMPLE, N_FEAT, int>,
-		5,
-		buf_ID, buf_ID_size, 
-		buf_input, buf_input_size,
-		buf_labels, buf_labels_size,
-		&encoded_hvs, encoded_hvs_size,
-		&clusters, clusters_size,
-		1,
-		buf_labels, buf_labels_size
-	);
-	__hetero_wait(DFG);
-#else
-	hd(buf_input, buf_input_size,
-	   buf_ID, buf_ID_size,
-	   buf_labels, buf_labels_size,
-	   EPOCH,
-	   N_SAMPLE);
-#endif
-	t_elapsed = chrono::high_resolution_clock::now() - t_start;
+
+	// Do streaming.
 	
-	mSec = chrono::duration_cast<chrono::milliseconds>(t_elapsed).count();
+	/***/
+	#if 1
+	for (int i = 0; i < EPOCH; i++) {
+		// Is it valid to call __hetero_wait multiple times?
+		// Can we normalize the hypervectors here or do we have to do that in the DFG.
+		for (int j = 0; j < N_SAMPLE; j++) {
+			// Encoding -> Clustering for a single HV.
+			void *DFG = __hetero_launch(
+				(void*) root_node<Dhv, N_CENTER, N_SAMPLE, N_FEAT, int>,
+				/* Input Buffers: 5*/ 5 + 1,
+				rp_matrix_ptr, rp_matrix_size, //false,
+				&input_vector[j * N_FEAT], input_vector_size, //true,
+				encoded_hv_ptr, encoded_hv_size,// false,
+				clusters_ptr, clusters_size, //false,
+				clusters_temp_ptr, clusters_size, //false,
+				/* Output Buffers: 2*/ 
+				labels, labels_size,
+				1,
+				labels, labels_size //, false
+			);
+			__hetero_wait(DFG);
+		}
+		// then update clusters and copy clusters_tmp to clusters, 
+
+		// How do we keep track of the normalization thing?
+		// Calcualte eucl maginutde of each cluster HV before copying it over?.
+		for (int k = 0; k < N_CENTER; k++) {
+			// set temp_clusters -> clusters
+			__hypervector__<Dhv, int> cluster = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, int>(clusters_temp, N_CENTER, Dhv, k);
+			// Normalize or sign?
+			__hypervector__<Dhv, int> cluster_norm = __hetero_hdc_sign<Dhv, int>(cluster);
+			__hetero_hdc_set_matrix_row(clusters, cluster_norm, k);
+		} 
+	} 
+	#endif
+	t_elapsed = std::chrono::high_resolution_clock::now() - t_start;
+	
+	mSec = std::chrono::duration_cast<std::chrono::milliseconds>(t_elapsed).count();
 	
 	/*
 	long double distance = 0;
@@ -170,12 +210,12 @@ int main(int argc, char** argv)
 		distance += sqrt(sum1);
 	}
 	*/
-	cout << "\nReading data took " << mSec1 << " mSec" << endl;    
-	cout << "Execution (" << EPOCH << " epochs)  took " << mSec << " mSec" << endl;
+	std::cout << "\nReading data took " << mSec1 << " mSec" << std::endl;    
+	std::cout << "Execution (" << EPOCH << " epochs)  took " << mSec << " mSec" << std::endl;
 	
-	ofstream myfile("out.txt");
+	std::ofstream myfile("out.txt");
 	for(int i = 0; i < N_SAMPLE; i++){
-		myfile << y_data[i] << " " << labels_gmem[i] << endl;
+		myfile << y_data[i] << " " << labels[i] << std::endl;
 	}
 	//calculate score
 	//string command = "python -W ignore mutual_info.py";
@@ -185,3 +225,4 @@ int main(int argc, char** argv)
     //cout << "\nAccuracy = " << float(correct)/N_SAMPLE << endl;
 }
 
+#endif

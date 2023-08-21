@@ -1,6 +1,6 @@
 #pragma once
 
-#include <hpvm_hdc.hpp>
+#include <hpvm_hdc.h>
 
 #include <math.h>
 #include <heterocc.h>
@@ -15,9 +15,6 @@
 #undef N_QUERY
 #undef N_VEC
 
-#define HM_GET_ROW(N, type, hm, i) ((__hypervector__<N, type>*)&hm)[i]
-#define HM_SET_ROW(N, type, hm, hv, i) ((__hypervector__<N, type>*)&hm)[i] = hv;
-
 #define MAX_ITERATIONS 5
 
 typedef int binary;
@@ -29,27 +26,29 @@ typedef int binary;
 // RP encoding reduces N_features -> D (but D is bigger? What is the point?)
 template<int D, int N_FEATURES, int N_VEC, typename elemTy>
 void rp_encoding_node(/* Input Buffers: 2*/
-        binary* rp_matrix, size_t rp_matrix_size, // __hypermatrix__<N_FEATURES, D, binary>
-        int* datapoint_matrix, size_t datapoint_matrix_size, // __hypermatrix__<N_VEC, N_FEATURES, int> 
+        __hypermatrix__<N_FEATURES, D, int>* rp_matrix, size_t rp_matrix_size, // __hypermatrix__<N_FEATURES, D, int>
+        __hypermatrix__<N_VEC, N_FEATURES, int> * datapoint_matrix, size_t datapoint_matrix_size, // __hypermatrix__<N_VEC, N_FEATURES, int> 
         /* Output Buffers: 1*/
-        binary* encoded_hvs, size_t encoded_hvs_size) { // __hypermatrix__<N_VEC, D, binary>
+        __hypermatrix__<N_VEC, D, int>* encoded_hvs, size_t encoded_hvs_size) { // __hypermatrix__<N_VEC, D, int>
     
     void* section = __hetero_section_begin();
 
     // To convert to streaming implementation, just remove the parallel loop and only provide one HV at a time.
     for (int i = 0; i < N_VEC; i++) {
+        #if 1
         __hetero_parallel_loop(1,
         /* Input Buffers: 2*/ 3, rp_matrix, rp_matrix_size, datapoint_matrix, datapoint_matrix_size, encoded_hvs, encoded_hvs_size,
         /* Parameters: 0*/
         /* Output Buffers: 1*/ 1, encoded_hvs, encoded_hvs_size,
         "encoding_node_parallel_loop");
+        #endif
 
-        __hypervector__<N_FEATURES, int> dp_vec = HM_GET_ROW(N_FEATURES, int, datapoint_matrix, i);
-        __hypervector__<D, int> encoded_hv = __hetero_hdc_matmul<D, N_FEATURES, int>(dp_vec, *((__hypermatrix__<D, N_FEATURES, int>*)(rp_matrix))); 
-        __hypervector__<D, binary> binarized_encoded_hv = __hetero_hdc_sign<D, int>(encoded_hv);
+        __hypervector__<N_FEATURES, int> dp_vec = __hetero_hdc_get_matrix_row<N_VEC, N_FEATURES, int>(datapoint_matrix, i);
+        __hypervector__<D, int> encoded_hv = __hetero_hdc_matmul<D, N_FEATURES, int>(dp_vec, *rp_matrix); 
+        __hypervector__<D, int> binarized_encoded_hv = __hetero_hdc_sign<D, int>(encoded_hv);
 
-        // Data race??
-        HM_SET_ROW(D, binary, encoded_hvs, binarized_encoded_hv, i);
+        // Data race??, can't be parallelized over input datapoints without an atomic.
+        __hetero_hdc_set_matrix_row<N_VEC, D, int>(encoded_hvs, binarized_encoded_hv, i);
     }
 
     __hetero_section_end(section);
@@ -60,8 +59,8 @@ void rp_encoding_node(/* Input Buffers: 2*/
 #if 1
 template<int D, int K, int N_VEC, typename elemTy> 
 void clustering_node_iteration(/* Input Buffers: 1*/
-        binary* encoded_hvs, size_t encoded_hvs_size, // __hypermatrix__ <NUM_VEC, D, elemTy>
-        binary* clusters, size_t clusters_size, //__hypermatrix__<
+        __hypermatrix__<N_VEC, D, int>* encoded_hvs, size_t encoded_hvs_size, // __hypermatrix__ <NUM_VEC, D, elemTy>
+        __hypermatrix__<K, D, int>* clusters, size_t clusters_size, //__hypermatrix__<K, D, int>*
         /* Output Buffers: 1*/
         int* labels, size_t labels_size) {
 
@@ -70,21 +69,24 @@ void clustering_node_iteration(/* Input Buffers: 1*/
     /** Map HVs to Clusters*/
     // loop over all HVs, they each be done in parallel
     for (int j = 0; j < N_VEC; j++) {
+        #if 1
         __hetero_parallel_loop(1,
         /* Input Buffers: 2*/ 3, encoded_hvs, encoded_hvs_size, clusters, clusters_size, labels, labels_size,
         /* Output Buffers: 1*/ 1, labels, labels_size,
         "clustering_iter_map_parallel_loop"
-        ); 
+        );
+        #endif
             
         int min = D;
         int min_k = 0;
-        __hypervector__<D, binary> hvec = HM_GET_ROW(D, binary, *((__hypermatrix__<N_VEC, D, binary>*)(encoded_hvs)), j);
+        
+        __hypervector__<D, int> hvec = __hetero_hdc_get_matrix_row<N_VEC, D, int>(*encoded_hvs, j);
         // Compute distance to each cluster center
         // Use vector-Matrix intrinsic as alternative to commented-out loop, however waste of a loop (over K) by not keeping track of min as we go.
-        __hypervector__<K, int> distances =  __hetero_hdc_hamming_distance<K, D, binary>(hvec, *((__hypermatrix__<K, D, binary>*)clusters));
+        __hypervector__<K, int> distances = __hetero_hdc_hamming_distance<K, D, int>(hvec, *clusters);
         for (int k = 0; k < K; k++) {
-            if (distances[k] < min) {
-                min = distances[k];
+            if (distances[0][k] < min) {
+                min = distances[0][k];
                 min_k = k;
             }
         }
@@ -97,23 +99,25 @@ void clustering_node_iteration(/* Input Buffers: 1*/
 
     /** Update Cluster Centers*/
     for (int k = 0; k < K; k++) {
+        #if 1
         __hetero_parallel_loop(1,
         /* Input Buffers: 2*/ 3, encoded_hvs, encoded_hvs_size, clusters, clusters_size, labels, labels_size,
         /* Output Buffers: 1*/ 1, clusters, clusters_size,
         "clustering_iter_update_parllel_loop"
-        ); 
+        );
+        #endif
         __hypervector__<D, int> sum = {0};
         int cluster_elements = 0;
         // Must be a more efficient way to do this. See clustering implementation based on masks?
         for (int i = 0; i < N_VEC; i++) {
             if (labels[i] == k) {
                 cluster_elements += 1;
-                sum += HM_GET_ROW(D, elemTy, encoded_hvs, i);
+                sum += __hetero_hdc_get_matrix_row<N_VEC, D, int>(*encoded_hvs, i);
             }
         }
         // reduce result to binary via majority with size of mask/2 as parameter.
         __hypervector__<D, binary> new_cluster = __hetero_hdc_sign<D, int>(sum); //__hetero_hdc_majority_binary<D, int>(sum, cluster_elements/2);
-        HM_SET_ROW(D, binary, clusters, new_cluster, k);
+        __hetero_hdc_set_matrix_row<K, D, int>(*clusters, k);
 
     } // End parallel loop, end HV to Cluster assignment.
     
@@ -128,8 +132,8 @@ void clustering_node_iteration(/* Input Buffers: 1*/
 // Dimensionality, number, clusters, number vectors, encoding precision.
 template<int D, int K, int N_VEC, typename elemTy>
 void clustering_node(/* Input Buffers: 3*/
-        binary* encoded_hvs, size_t encoded_hvs_size, // Encoded Hypervectors
-        binary* clusters, size_t clusters_size, // Location of initial Clusters
+        __hypermatrix__<N_VEC, D, binary>* encoded_hvs, size_t encoded_hvs_size, // Encoded Hypervectors
+        __hypermatrix__<K, D, binary>* clusters, size_t clusters_size, // Location of initial Clusters
         /* Parameters: 2*/
         //int max_iterations, int convergence_threshold,
         /* Output Buffers: 1*/
@@ -157,11 +161,11 @@ void clustering_node(/* Input Buffers: 3*/
 
 template <int D, int K, int N_VEC, int N_FEATURES, typename elemTy>
 void root_node( /* Input buffers: 2*/ 
-                binary* rp_matrix, size_t rp_matrix_size, // __hypermatrix__<N_FEATURES, D, binary>
-                int* datapoint_matrix, size_t datapoint_matrix_size, // __hypermatrix__<N_VEC, N_FEATURES, int> 
+                __hypermatrix__<N_FEATURES, D, binary>* rp_matrix, size_t rp_matrix_size, // __hypermatrix__<N_FEATURES, D, binary>
+                __hypermatrix__<N_VEC, N_FEATURES, int>* datapoint_matrix, size_t datapoint_matrix_size, // __hypermatrix__<N_VEC, N_FEATURES, int> 
                 /* Local Vars: 1*/
-                binary* encoded_hvs, size_t encoded_hvs_size, // __hypermatrix__<N_VEC, D, binary>
-                binary* clusters, size_t clusters_size, // __hypermatrix__<K, D, binary>
+                __hypermatrix__<N_VEC, D, binary>* encoded_hvs, size_t encoded_hvs_size, // __hypermatrix__<N_VEC, D, binary>
+                __hypermatrix__<K, D, binary>* clusters, size_t clusters_size, // __hypermatrix__<K, D, binary>
                 /* Parameters: */
                 /* Output Buffers: 1*/
                 int* labels, size_t labels_size){
@@ -182,9 +186,10 @@ void root_node( /* Input buffers: 2*/
         "Initialize_Clusters_task"
     );
     
-    // Initialize clusters, have to do it here.
+    // Initialize clusters with first K encoded hypervectors.
     for (int k = 0; k < K; k++) {
-        HM_GET_ROW(D, int, *((__hypermatrix__<K, D, binary>*)(clusters)), k) = HM_GET_ROW(D, int, *(__hypermatrix__<N_VEC, D, binary>*)encoded_hvs, k);
+        auto tmp = __hetero_hdc_get_matrix_row<N_VEC, D, int>(*encoded_hvs, k);
+        __hetero_hdc_set_matrix_row<K, D, int>(*clusters, tmp, k); 
     }
 
     __hetero_task_end(initialize_clusters);
@@ -194,8 +199,6 @@ void root_node( /* Input buffers: 2*/
         /* Output Buffers: 1*/ 1, labels, labels_size,
         "Root_Clustering_Task"
     );
-
-    
 
     clustering_node<D, K, N_VEC, elemTy>(encoded_hvs, encoded_hvs_size, clusters, clusters_size, labels, labels_size);
 
