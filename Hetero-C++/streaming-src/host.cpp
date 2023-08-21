@@ -98,27 +98,27 @@ int main(int argc, char** argv)
 
 	// Not inputs or outputs to computation:
 	// Do these need to be malloced?
-	__hypervector__<Dhv, int> encoded_hv;
+	__hypervector__<Dhv, int> encoded_hv = __hetero_hdc_hypervector<Dhv, int>();
 	__hypervector__<Dhv, int>* encoded_hv_ptr = &encoded_hv;
 	size_t encoded_hv_size = Dhv * sizeof(int);
   
-	__hypervector__<Dhv, int> cluster;
+	__hypervector__<Dhv, int> cluster = __hetero_hdc_hypervector<Dhv, int>();
 	__hypervector__<Dhv, int>* cluster_ptr = &cluster;
 	size_t cluster_size = Dhv* sizeof(int);
 
-	__hypermatrix__<N_CENTER, Dhv, int> clusters;
+	__hypermatrix__<N_CENTER, Dhv, int> clusters = __hetero_hdc_hypermatrix<N_CENTER, Dhv, int>();;
 	__hypermatrix__<N_CENTER, Dhv, int>* clusters_ptr = &clusters;
 	size_t clusters_size = N_CENTER * Dhv * sizeof(int);
 
-	__hypermatrix__<N_CENTER, Dhv, int> clusters_temp;
+	__hypermatrix__<N_CENTER, Dhv, int> clusters_temp = __hetero_hdc_hypermatrix<N_CENTER, Dhv, int>();
 	__hypermatrix__<N_CENTER, Dhv, int>* clusters_temp_ptr = &clusters_temp;
 
 	// Does this need to be malloced?
-	__hypermatrix__<Dhv, N_FEAT, int> rp_matrix;
+	__hypermatrix__<Dhv, N_FEAT, int> rp_matrix = __hetero_hdc_hypermatrix<Dhv, N_FEAT, int>();;
 	__hypermatrix__<Dhv, N_FEAT, int>* rp_matrix_ptr = &rp_matrix;
 	size_t rp_matrix_size = N_FEAT * Dhv * sizeof(int);
 
-	__hypervector__<Dhv, int> rp_seed;
+	__hypervector__<Dhv, int> rp_seed = __hetero_hdc_hypervector<Dhv, int>();
 	std::cout << "Dimension over 32" << Dhv/32 << std::endl;
 	//We need a seed ID. To generate in a random yet determenistic (for later debug purposes) fashion, we use bits of log2 as some random stuff.
 	for(int i = 0; i < Dhv/32; i++){

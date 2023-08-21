@@ -26,7 +26,8 @@ void rp_encoding_node(/* Input Buffers: 2*/
     void* task = __hetero_task_begin(
         /* Input Buffers: 2*/ 3, rp_matrix_ptr, rp_matrix_size, input_datapoint_ptr, input_datapoint_size, output_hv_ptr, output_hv_size,
         /* Parameters: 0*/
-        /* Output Buffers: 1*/ 1, output_hv_ptr, output_hv_size
+        /* Output Buffers: 1*/ 1, output_hv_ptr, output_hv_size,
+        "inner_rp_encoding_task"
     );
     
     __hypervector__<D, int> encoded_hv = __hetero_hdc_matmul<D, N_FEATURES, int>(*input_datapoint_ptr, *rp_matrix_ptr); 
