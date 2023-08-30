@@ -38,6 +38,10 @@ void datasetBinaryRead(std::vector<int> &data, std::string path){
 	file_.close();
 }
 
+int initialize_hv(int* datapoint_vector, size_t loop_index_var) {
+	return datapoint_vector[loop_index_var];
+}
+
 int main(int argc, char** argv)
 {
 	auto t_start = std::chrono::high_resolution_clock::now();
@@ -97,7 +101,7 @@ int main(int argc, char** argv)
 	t_start = std::chrono::high_resolution_clock::now();
 
 	// Not inputs or outputs to computation:
-	// Do these need to be malloced?
+
 	__hypervector__<Dhv, int> encoded_hv = __hetero_hdc_hypervector<Dhv, int>();
 	__hypervector__<Dhv, int>* encoded_hv_ptr = &encoded_hv;
 	size_t encoded_hv_size = Dhv * sizeof(int);
@@ -106,15 +110,15 @@ int main(int argc, char** argv)
 	__hypervector__<Dhv, int>* cluster_ptr = &cluster;
 	size_t cluster_size = Dhv* sizeof(int);
 
-	__hypermatrix__<N_CENTER, Dhv, int> clusters = __hetero_hdc_hypermatrix<N_CENTER, Dhv, int>();;
+	__hypermatrix__<N_CENTER, Dhv, int> clusters = __hetero_hdc_hypermatrix<N_CENTER, Dhv, int>();
 	__hypermatrix__<N_CENTER, Dhv, int>* clusters_ptr = &clusters;
 	size_t clusters_size = N_CENTER * Dhv * sizeof(int);
 
 	__hypermatrix__<N_CENTER, Dhv, int> clusters_temp = __hetero_hdc_hypermatrix<N_CENTER, Dhv, int>();
 	__hypermatrix__<N_CENTER, Dhv, int>* clusters_temp_ptr = &clusters_temp;
 
-	// Does this need to be malloced?
-	__hypermatrix__<Dhv, N_FEAT, int> rp_matrix = __hetero_hdc_hypermatrix<Dhv, N_FEAT, int>();;
+
+	__hypermatrix__<Dhv, N_FEAT, int> rp_matrix = __hetero_hdc_hypermatrix<Dhv, N_FEAT, int>();
 	__hypermatrix__<Dhv, N_FEAT, int>* rp_matrix_ptr = &rp_matrix;
 	size_t rp_matrix_size = N_FEAT * Dhv * sizeof(int);
 
@@ -152,23 +156,32 @@ int main(int argc, char** argv)
 	for (int j = 0; j < Dhv; j++) { // Rows
 		for (int i = 0; i < N_FEAT; i++) { //Cols
 			temp = __hetero_hdc_wrap_shift<Dhv, int>(rp_seed, i);
-			row[0][i] = temp[0][j];
+			//row[0][i] = temp[0][j]; // Indexing doesn't correctly propogate buffer information.
 		}
 		//print_hv<N_FEAT, int>(row);
 		__hetero_hdc_set_matrix_row<Dhv, N_FEAT, int>(rp_matrix, row, j); 
 	}
 
+	row = __hetero_hdc_get_matrix_row<Dhv, N_FEAT, int>(*rp_matrix_ptr, Dhv, N_FEAT, 0);
+
+	&row;
+
+	print_hv<N_FEAT, int>(row);
+
 
 #ifdef HPVM
+	#if 1
 	// Initialize cluster hvs.
 	for (int k = 0; k < N_CENTER; k++) {
+		__hypervector__<N_FEAT, int> datapoint_hv = __hetero_hdc_create_hypervector<N_FEAT, int>(1, (void*) initialize_hv, &input_vectors[k * N_FEAT]);
 		// Encode the first N_CENTER hypervectors and set them to be the clusters.
+
 		void* initialize_DFG = __hetero_launch(
 			(void*) rp_encoding_node<Dhv, N_FEAT>,
 			2 + 1,
 			/* Input Buffers: 2*/ 
-			rp_matrix_ptr, rp_matrix_size, //false,
-			&input_vectors[k * N_FEAT], input_vector_size,
+			&rp_matrix, rp_matrix_size, //false,
+			&datapoint_hv, input_vector_size,
 			/* Output Buffers: 1*/ 
 			cluster_ptr, cluster_size,  //false,
 			1,
@@ -177,11 +190,11 @@ int main(int argc, char** argv)
 
 		__hetero_wait(initialize_DFG);
 
-		__hetero_hdc_set_matrix_row<N_CENTER, Dhv, int>(*clusters_ptr, *cluster_ptr, k);
+		//__hetero_hdc_set_matrix_row<N_CENTER, Dhv, int>(*clusters_ptr, *cluster_ptr, k);
 
-		__hypervector__<Dhv, int> cluster_temp = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, int>(*clusters_ptr, N_CENTER, Dhv, k);
+		//__hypervector__<Dhv, int> cluster_temp = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, int>(*clusters_ptr, N_CENTER, Dhv, k);
 		std::cout << k << " ";
-		print_hv<Dhv, int>(cluster_temp);
+		//print_hv<Dhv, int>(cluster_temp);
 	}
 	// Print the encoded clusters
 
@@ -192,6 +205,7 @@ int main(int argc, char** argv)
 	// Do streaming.
 	
 	/***/
+	#endif
 	#if 0
 	for (int i = 0; i < EPOCH; i++) {
 		// Is it valid to call __hetero_wait multiple times?
@@ -261,9 +275,11 @@ int main(int argc, char** argv)
 	//calculate score
 	//string command = "python -W ignore mutual_info.py";
 	//system(command.c_str());
-    
+	#endif
  //   cout << "\nNormalized distance:\t" << int(distance / count / Dhv) << endl;
     //cout << "\nAccuracy = " << float(correct)/N_SAMPLE << endl;
 }
 
-#endif
+
+
+

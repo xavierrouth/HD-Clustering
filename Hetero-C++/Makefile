@@ -9,7 +9,7 @@ CUDA_PATH:=/software/cuda-9.1
 OPENCL_PATH:=$(CUDA_PATH)
 OPENCL_LIB_PATH:=$(OPENCL_PATH/lib64)
 
-CFLAGS := -O1 -fenable-matrix -ftime-report -fno-discard-value-names 
+CFLAGS := -O1 -fenable-matrix -ftime-report -fno-discard-value-names -fno-exceptions
 
 # PARAMETERS := -DHPVM -DDEVICE=hpvm::CPU_TARGET
 

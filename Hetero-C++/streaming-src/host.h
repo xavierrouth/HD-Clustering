@@ -11,6 +11,7 @@
 #include <iostream>
 #include <fstream>
 
+/**
 template <typename T>
 struct aligned_allocator
 {
@@ -27,6 +28,7 @@ struct aligned_allocator
     free(p);
   }
 };
+*/
 
 #define N_CENTER		26	//number of centers. (e.g., isolet: 26,)
 #define N_FEAT			617	//feature per input (e.g., isolet: 617)

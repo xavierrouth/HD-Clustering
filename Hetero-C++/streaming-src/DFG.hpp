@@ -94,8 +94,8 @@ void clustering_node(/* Input Buffers: 3*/
 
 
     // Accumulate to temp clusters
-    auto temp = __hetero_hdc_get_matrix_row<K, D, int>(*temp_clusters_ptr, K, D, max_idx);
-    __hetero_hdc_set_matrix_row<K, D, int>(*temp_clusters_ptr, temp += encoded_hv, max_idx);
+    //auto temp = __hetero_hdc_get_matrix_row<K, D, int>(*temp_clusters_ptr, K, D, max_idx);
+    //__hetero_hdc_set_matrix_row<K, D, int>(*temp_clusters_ptr, temp += encoded_hv, max_idx);
 
     __hetero_task_end(task);
     __hetero_section_end(section);
