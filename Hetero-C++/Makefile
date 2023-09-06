@@ -1,4 +1,4 @@
-INCLUDES := -I$(HPVM_INSTALL_DIR)/include -I$(HPVM_INSTALL_DIR)/benchmarks/include -I$(HPVM_INSTALL_DIR)/projects/hpvm-hdc -I./src
+INCLUDES := -I$(HPVM_INSTALL_DIR)/include -I$(HPVM_INSTALL_DIR)/benchmarks/include -I$(HPVM_INSTALL_DIR)/projects/hpvm-hdc -I./streaming-src
 
 HPVM_LIB := $(HPVM_INSTALL_DIR)/build/lib
 HPVM_BIN := $(HPVM_INSTALL_DIR)/build/bin
@@ -13,9 +13,6 @@ CFLAGS := -O1 -fenable-matrix -ftime-report -fno-discard-value-names -fno-except
 
 # PARAMETERS := -DHPVM -DDEVICE=hpvm::CPU_TARGET
 
-# build/host.cpu : streaming-src/host.cpp  src/host.h
-#	hpvm-clang $(PARAMETERS) $(CFLAGS) $(INCLUDES) -d tmp/ -o $@ streaming-src/host.cpp
-# $(PARAMETERS) -DDEVICE=hpvm::CPU_TARGET -lm -lrt -pthread -lOpenCL
 # Generate Executable
 host-cpu: build/output.ll
 	$(HPVM_INSTALL_DIR)/build/bin/clang++ -I$(OPENCL_PATH)/include/CL -L$(OPENCL_LIB_PATH) -lm -lrt -pthread -lOpenCL -O1 $< -o $@
@@ -25,7 +22,7 @@ build/host.cpu.ll: streaming-src/host.cpp
 	$(HPVM_BIN)/clang++ -DHPVM -DDEVICE=hpvm::CPU_TARGET $(CFLAGS) $(INCLUDES) -S -emit-llvm $^ -o $@ 
 
 build/hpvmc.cpu.ll: build/host.cpu.ll
-	$(HPVM_BIN)/hcc $< -declsfile $(HPVM_DECLS_FILE) -sanitise-funcs -S -o $@
+	$(HPVM_BIN)/hcc $< -declsfile $(HPVM_DECLS_FILE) -sanitise-funcs --dot-dfg -S -o $@
 
 # GenHPVM and mem2reg
 build/hpvm.cpu.ll: build/hpvmc.cpu.ll

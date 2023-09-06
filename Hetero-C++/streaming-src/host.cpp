@@ -141,6 +141,10 @@ int main(int argc, char** argv)
 	__hypermatrix__<N_CENTER, Dhv, int> clusters_temp = __hetero_hdc_hypermatrix<N_CENTER, Dhv, int>();
 	__hypermatrix__<N_CENTER, Dhv, int>* clusters_temp_ptr = &clusters_temp;
 
+	__hypervector__<N_CENTER, int> distances = __hetero_hdc_hypervector<N_CENTER, int>();
+	__hypervector__<N_CENTER, int>* distances_ptr = &distances;
+	size_t distances_size = N_CENTER * sizeof(int);
+
 	// Encoding matrix: First we write into rp_matrix_transpose, then transpose it to get rp_matrix,
 	// which is the correct dimensions for encoding input features.
 	__hypermatrix__<N_FEAT, Dhv, int> rp_matrix_transpose = __hetero_hdc_hypermatrix<N_FEAT, Dhv, int>();
@@ -220,12 +224,14 @@ int main(int argc, char** argv)
 			// Root node is: Encoding -> Clustering for a single HV.
 			void *DFG = __hetero_launch(
 				(void*) root_node<Dhv, N_CENTER, N_SAMPLE, N_FEAT>,
-				/* Input Buffers: 5*/ 7 + 1,
+				/* Input Buffers: 6*/ 6 + 2 + 1,
 				rp_matrix_ptr, rp_matrix_size, //false,
 				&datapoint_hv, input_vector_size, //true,
 				encoded_hv_ptr, encoded_hv_size,// false,
 				clusters_ptr, clusters_size, //false,
 				clusters_temp_ptr, clusters_size, //false,
+				distances_ptr, distances_size, //false
+				/* Parameters: 2*/
 				j, 0, 
 				/* Output Buffers: 1*/ 
 				labels, labels_size,
