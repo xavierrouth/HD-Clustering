@@ -50,18 +50,18 @@ void rp_encoding_node(/* Input Buffers: 2*/
 // In the streaming implementation, this runs for each encoded HV, so N_VEC * EPOCHs times.
 template<int D, int K, int N_VEC>
 void clustering_node(/* Input Buffers: 3*/
-        __hypervector__<D, binary>* encoded_hv_ptr, size_t encoded_hv_size, // __hypervector__<D, binary>
-        __hypermatrix__<K, D, binary>* clusters_ptr, size_t clusters_size, // __hypermatrix__<K, D, binary>
-        __hypermatrix__<K, D, binary>* temp_clusters_ptr, size_t temp_clusters_size, // ALSO AN OUTPUT
+        __hypervector__<D, int>* encoded_hv_ptr, size_t encoded_hv_size, // __hypervector__<D, binary>
+        __hypermatrix__<K, D, int>* clusters_ptr, size_t clusters_size, // __hypermatrix__<K, D, binary>
+        __hypermatrix__<K, D, int>* temp_clusters_ptr, size_t temp_clusters_size, // ALSO AN OUTPUT
         int encoded_hv_idx,
         /* Output Buffers: 1*/
         int* labels, size_t labels_size) { // Mapping of HVs to Clusters. int[N_VEC]
 
     void* section = __hetero_section_begin();
 
-    void* task = __hetero_task_begin(
+    void* task1 = __hetero_task_begin(
         /* Input Buffers: 4*/ 4 + 1, encoded_hv_ptr, encoded_hv_size, clusters_ptr, clusters_size, temp_clusters_ptr, temp_clusters_size, labels, labels_size, encoded_hv_idx,
-        /* Output Buffers: 1*/ 1, labels, labels_size
+        /* Output Buffers: 1*/ 1, labels, labels_size, "clustering_step_1_task"
     );
 
     __hypervector__<D, int> encoded_hv = *encoded_hv_ptr;
@@ -74,7 +74,17 @@ void clustering_node(/* Input Buffers: 3*/
     int max_idx = 0;
 
     __hypervector__<D, int> cluster_center = __hetero_hdc_hypervector<D, int>();
+
+    // TODO:
+    /// Use matrix-vector intrinsic, and 
+
     // Could instead use a vector-matrix (encoded_hv X clusters)intrinsic to avoid looping over all clusters.
+
+    __hypervector__<K, int> distance = __hetero_hdc_hypervector<K, int>(); // Does this need to be allocated on host?
+
+    //distance = __hetero_hdc_hamming_distance<K, D, int>(encoded_hv, clusters);
+
+
     for (int k = 0 ; k < K; k++) {
         cluster_center = __hetero_hdc_get_matrix_row<K, D, int>(clusters, K, D, k);
         // FPGA implementation does optimizations where it stores the magnitude of the center hvs, so it doesn't have to re-calculate them each time we do cossim
@@ -88,7 +98,17 @@ void clustering_node(/* Input Buffers: 3*/
             max_idx = k;
         }
     }
+    
 
+   //__hetero_task_end(task1);
+
+   //__hetero_task_begin();
+
+    //hv dist = __hetero_hdc_hamming_distance<K, D, int>(clusters, encoded_hv);
+    // End Task
+
+    // New task to find max idx.
+    
     // Write labels
     labels[encoded_hv_idx] = max_idx;
 
@@ -97,7 +117,7 @@ void clustering_node(/* Input Buffers: 3*/
     //auto temp = __hetero_hdc_get_matrix_row<K, D, int>(*temp_clusters_ptr, K, D, max_idx);
     //__hetero_hdc_set_matrix_row<K, D, int>(*temp_clusters_ptr, temp += encoded_hv, max_idx);
 
-    __hetero_task_end(task);
+    __hetero_task_end(task1);
     __hetero_section_end(section);
     return;
 }
@@ -107,7 +127,7 @@ template <int D, int K, int N_VEC, int N_FEATURES>
 void root_node( /* Input buffers: 2*/ 
                 __hypermatrix__<D, N_FEATURES, int>* rp_matrix_ptr, size_t rp_matrix_size, // __hypermatrix__<N_FEATURES, D, binary>
                 __hypervector__<N_FEATURES, int>* datapoint_vec_ptr, size_t datapoint_vec_size, // Features
-                /* Local Vars: 1*/
+                /* Local Vars: 3*/
                 __hypervector__<D, int>* encoded_hv_ptr, size_t encoded_hv_size, // // __hypervector__<D, binary>
                 __hypermatrix__<K, D, int>* clusters_ptr, size_t clusters_size, // __hypermatrix__<K, D, binary>
                 __hypermatrix__<K, D, int>* temp_clusters_ptr, size_t temp_clusters_size, // ALSO AN OUTPUT

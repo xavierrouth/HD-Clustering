@@ -39,7 +39,7 @@ void datasetBinaryRead(std::vector<int> &data, std::string path){
 }
 
 int initialize_hv(int* datapoint_vector, size_t loop_index_var) {
-	std::cout << datapoint_vector[loop_index_var] << "\n";
+	//std::cout << ((float*)datapoint_vector)[loop_index_var] << "\n";
 	return datapoint_vector[loop_index_var];
 }
 
@@ -171,18 +171,16 @@ int main(int argc, char** argv)
 	// Now transpose in order to be able to multiply with input hv in DFG.
 	rp_matrix = __hetero_hdc_matrix_transpose<N_FEAT, Dhv, int>(rp_matrix_transpose, N_FEAT, Dhv);
 	
+	std::cout << "Transpose of encoding matrix:" << std::endl;
 	// Make sure transpose worked:
 	__hypervector__<N_FEAT, int> tmp = __hetero_hdc_hypervector<N_FEAT, int>();
 	for (int i = 0 ; i < Dhv; i++) {
 		tmp = __hetero_hdc_get_matrix_row<Dhv, N_FEAT, int>(rp_matrix, Dhv, N_FEAT, i);
-		print_hv<N_FEAT, int>(tmp);
+		//print_hv<N_FEAT, int>(tmp);
 	}
 	// Print out at the end here.
 	//print_hv<N_FEAT, int>(row);
 
-
-#ifdef HPVM
-	#if 1
 	// Initialize cluster hvs.
 	for (int k = 0; k < N_CENTER; k++) {
 		__hypervector__<N_FEAT, int> datapoint_hv = __hetero_hdc_create_hypervector<N_FEAT, int>(1, (void*) initialize_hv, &input_vectors[k * N_FEAT]);
@@ -209,33 +207,27 @@ int main(int argc, char** argv)
 		// Cluster temp is used for printing
 		__hypervector__<Dhv, int> cluster_temp = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, int>(*clusters_ptr, N_CENTER, Dhv, k);
 		std::cout << k << " ";
-		print_hv<Dhv, int>(cluster_temp);
+		//print_hv<Dhv, int>(cluster_temp);
 	}
+
 	// Print the encoded clusters
-
-	// Start doing the clustering.
-
-	// Launch the DFG
-
-	// Do streaming.
-	
-	/***/
-	#endif
-	#if 0
 	for (int i = 0; i < EPOCH; i++) {
-		// Is it valid to call __hetero_wait multiple times?
+
 		// Can we normalize the hypervectors here or do we have to do that in the DFG.
 		for (int j = 0; j < N_SAMPLE; j++) {
-			// Encoding -> Clustering for a single HV.
+			__hypervector__<N_FEAT, int> datapoint_hv = __hetero_hdc_create_hypervector<N_FEAT, int>(1, (void*) initialize_hv, &input_vectors[j * N_FEAT]);
+
+			// Root node is: Encoding -> Clustering for a single HV.
 			void *DFG = __hetero_launch(
 				(void*) root_node<Dhv, N_CENTER, N_SAMPLE, N_FEAT>,
-				/* Input Buffers: 5*/ 5 + 1,
+				/* Input Buffers: 5*/ 7 + 1,
 				rp_matrix_ptr, rp_matrix_size, //false,
-				&input_vectors[j * N_FEAT], input_vector_size, //true,
+				&datapoint_hv, input_vector_size, //true,
 				encoded_hv_ptr, encoded_hv_size,// false,
 				clusters_ptr, clusters_size, //false,
 				clusters_temp_ptr, clusters_size, //false,
-				/* Output Buffers: 2*/ 
+				j, 0, 
+				/* Output Buffers: 1*/ 
 				labels, labels_size,
 				1,
 				labels, labels_size //, false
@@ -244,8 +236,9 @@ int main(int argc, char** argv)
 		}
 		// then update clusters and copy clusters_tmp to clusters, 
 
-		// How do we keep track of the normalization thing?
 		// Calcualte eucl maginutde of each cluster HV before copying it over?.
+
+		// TODO: Move to DAG
 		for (int k = 0; k < N_CENTER; k++) {
 			// set temp_clusters -> clusters
 			__hypervector__<Dhv, int> cluster = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, int>(clusters_temp, N_CENTER, Dhv, k);
@@ -254,7 +247,7 @@ int main(int argc, char** argv)
 			__hetero_hdc_set_matrix_row(clusters, cluster_norm, k);
 		} 
 	} 
-	#endif
+
 	t_elapsed = std::chrono::high_resolution_clock::now() - t_start;
 	
 	mSec = std::chrono::duration_cast<std::chrono::milliseconds>(t_elapsed).count();
@@ -280,6 +273,7 @@ int main(int argc, char** argv)
 		distance += sqrt(sum1);
 	}
 	*/
+
 	std::cout << "\nReading data took " << mSec1 << " mSec" << std::endl;    
 	std::cout << "Execution (" << EPOCH << " epochs)  took " << mSec << " mSec" << std::endl;
 	
@@ -290,9 +284,9 @@ int main(int argc, char** argv)
 	//calculate score
 	//string command = "python -W ignore mutual_info.py";
 	//system(command.c_str());
-	#endif
- //   cout << "\nNormalized distance:\t" << int(distance / count / Dhv) << endl;
+ 	//cout << "\nNormalized distance:\t" << int(distance / count / Dhv) << endl;
     //cout << "\nAccuracy = " << float(correct)/N_SAMPLE << endl;
+	return 0;
 }
 
 
