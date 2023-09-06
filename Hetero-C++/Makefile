@@ -1,4 +1,4 @@
-INCLUDES := -I$(HPVM_INSTALL_DIR)/include -I$(HPVM_INSTALL_DIR)/benchmarks/include -I$(HPVM_INSTALL_DIR)/projects/hpvm-hdc -I./src
+INCLUDES := -I$(HPVM_INSTALL_DIR)/include -I$(HPVM_INSTALL_DIR)/benchmarks/include -I$(HPVM_INSTALL_DIR)/projects/hpvm-hdc -I$(HPVM_INSTALL_DIR)/projects/hetero-c++/test/include -I./streaming-src
 
 HPVM_LIB := $(HPVM_INSTALL_DIR)/build/lib
 HPVM_BIN := $(HPVM_INSTALL_DIR)/build/bin
@@ -9,34 +9,39 @@ CUDA_PATH:=/software/cuda-9.1
 OPENCL_PATH:=$(CUDA_PATH)
 OPENCL_LIB_PATH:=$(OPENCL_PATH/lib64)
 
-CFLAGS := -O1 -fenable-matrix -ftime-report -fno-discard-value-names -fno-exceptions
+CFLAGS := -O1 -fenable-matrix -ftime-report -fno-discard-value-names -fno-exceptions -lm -lrt -pthread -lOpenCL
 
 # PARAMETERS := -DHPVM -DDEVICE=hpvm::CPU_TARGET
 
-# build/host.cpu : streaming-src/host.cpp  src/host.h
-#	hpvm-clang $(PARAMETERS) $(CFLAGS) $(INCLUDES) -d tmp/ -o $@ streaming-src/host.cpp
-# $(PARAMETERS) -DDEVICE=hpvm::CPU_TARGET -lm -lrt -pthread -lOpenCL
+
 # Generate Executable
 host-cpu: build/output.ll
-	$(HPVM_INSTALL_DIR)/build/bin/clang++ -I$(OPENCL_PATH)/include/CL -L$(OPENCL_LIB_PATH) -lm -lrt -pthread -lOpenCL -O1 $< -o $@
+	$(HPVM_INSTALL_DIR)/build/bin/clang++ -I$(OPENCL_PATH)/include/CL -L$(OPENCL_LIB_PATH) -lm -lrt -pthread -lOpenCL -O2 $< -o $@
 
 # Clang Frontend to IR
 build/host.cpu.ll: streaming-src/host.cpp
 	$(HPVM_BIN)/clang++ -DHPVM -DDEVICE=hpvm::CPU_TARGET $(CFLAGS) $(INCLUDES) -S -emit-llvm $^ -o $@ 
+#$HPVM_BIN/clang++ -O1 -I$OPENCL_PATH/include/CL -L$OPENCL_LIB_PATH -I$HPVM_ROOT/projects/hetero-c++/test/include/ -lm -lrt -pthread -lOpenCL  $INCLUDE_FLAG -fenable-matrix    $PREFIX.cpp -S -emit-llvm -o $PREFIX.ll
 
-build/hpvmc.cpu.ll: build/host.cpu.ll
-	$(HPVM_BIN)/hcc $< -declsfile $(HPVM_DECLS_FILE) -sanitise-funcs -S -o $@
-
-# GenHPVM and mem2reg
-build/hpvm.cpu.ll: build/hpvmc.cpu.ll
-	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/HPVMGenHPVM.so -inline -mem2reg -genhpvm $< -S -o $@
+# GenHPVM for HDC only and mem2reg
+build/hpvm.genhdc.cpu.ll: build/host.cpu.ll
+	$(HPVM_BIN)/opt -mem2reg -enable-new-pm=0 -load $(HPVM_LIB)/HPVMGenHPVM.so  -genhpvm -hpvm-hdc-only $< -S -o $@
+# $OPT -mem2reg -enable-new-pm=0 -load $HPVM_LIB/HPVMGenHPVM.so -genhpvm  -hpvm-hdc-only $PREFIX.ll -S -o $PREFIX.genhdc.hpvm.ll
 
 # Lower HDC Intrinsics
-build/hdclowered.cpu.ll: build/hpvm.cpu.ll #hpvm.
+build/hdc.lowered.cpu.ll: build/hpvm.genhdc.cpu.ll #hpvm.
 	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/LLVMHPVMHDC.so -debug -lower-hdc $< -S -o $@
 
+# HCC -> HPVM
+build/hpvmc.cpu.ll: build/hdc.lowered.cpu.ll
+	$(HPVM_BIN)/hcc $< -declsfile $(HPVM_DECLS_FILE) -sanitise-funcs --dot-dfg -S -o $@
+
+# GenHPVM for the HPVM IR
+build/hpvm.cpu.ll: build/hpvmc.cpu.ll
+	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/HPVMGenHPVM.so -mem2reg -genhpvm $< -S -o $@
+
 # Other HPVM Passes
-build/hpvmcompiled.cpu.ll: build/hdclowered.cpu.ll
+build/hpvmcompiled.cpu.ll: build/hpvm.cpu.ll
 	$(HPVM_INSTALL_DIR)/build/bin/opt -enable-new-pm=0 -load $(HPVM_LIB)/HPVMBuildDFG.so -load $(HPVM_LIB)/HPVMDFG2LLVM_CPU.so -load $(HPVM_LIB)/HPVMClearDFG.so -load $(HPVM_LIB)/HPVMDFGTransformPasses.so -dfg2llvm-cpu -clearDFG -hpvm-timers-cpu $< -S -o $@
 
 HPVM_RT := $(HPVM_BUILD_DIR)/tools/hpvm/projects/hpvm-rt/hpvm-rt.bc
