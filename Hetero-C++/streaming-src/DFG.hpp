@@ -53,89 +53,81 @@ void clustering_node(/* Input Buffers: 3*/
         __hypervector__<D, int>* encoded_hv_ptr, size_t encoded_hv_size, // __hypervector__<D, binary>
         __hypermatrix__<K, D, int>* clusters_ptr, size_t clusters_size, // __hypermatrix__<K, D, binary>
         __hypermatrix__<K, D, int>* temp_clusters_ptr, size_t temp_clusters_size, // ALSO AN OUTPUT
-        __hypervector__<K, int>* distances_ptr, size_t distances_size, // Used as Local var.
+        __hypervector__<K, int>* scores_ptr, size_t scores_size, // Used as Local var.
         int encoded_hv_idx,
         /* Output Buffers: 1*/
         int* labels, size_t labels_size) { // Mapping of HVs to Clusters. int[N_VEC]
 
     void* section = __hetero_section_begin();
-    { // Scoping hack in order to have 'distances' defined in each task.
+
+    { // Scoping hack in order to have 'scores' defined in each task.
+
     void* task1 = __hetero_task_begin(
-        /* Input Buffers: 4*/ 4, encoded_hv_ptr, encoded_hv_size, clusters_ptr, clusters_size, temp_clusters_ptr, temp_clusters_size, distances_ptr, distances_size, 
-        /* Output Buffers: 1*/ 1,  distances_ptr, distances_size, "clustering_step_1_task"
+        /* Input Buffers: 4*/ 3, encoded_hv_ptr, encoded_hv_size, clusters_ptr, clusters_size, scores_ptr, scores_size, 
+        /* Output Buffers: 1*/ 1,  scores_ptr, scores_size, "clustering_scoring_task"
     );
 
-    // Tasks should be scoped...
-
-    
     __hypervector__<D, int> encoded_hv = *encoded_hv_ptr;
     __hypermatrix__<K, D, int> clusters = *clusters_ptr;
-    __hypervector__<K, int> distances = *distances_ptr;
+    __hypervector__<K, int> scores = *scores_ptr;
 
-    // Do we need to store the distances??
-    //int distances[K]; // Store dot-products to eventually calculate similarity.
+    *scores_ptr = __hetero_hdc_hamming_distance<K, D, int>(encoded_hv, clusters);
 
-    __hypervector__<D, int> cluster_center = __hetero_hdc_hypervector<D, int>();
+    // Do we need to store the scores??
+    //int scores[K]; // Store dot-products to eventually calculate similarity.
 
-    // TODO:
-    /// Use matrix-vector intrinsic, and 
+    //__hypervector__<D, int> cluster_center = __hetero_hdc_hypervector<D, int>();
 
-    // Could instead use a vector-matrix (encoded_hv X clusters)intrinsic to avoid looping over all clusters.
-
-    //__hypervector__<K, int> distance = __hetero_hdc_hypervector<K, int>(); // Does this need to be allocated on host?
-
-    //distance = __hetero_hdc_hamming_distance<K, D, int>(encoded_hv, clusters);
-
+    // Previous:
 
     /*
     for (int k = 0 ; k < K; k++) {
         cluster_center = __hetero_hdc_get_matrix_row<K, D, int>(clusters, K, D, k);
         // FPGA implementation does optimizations where it stores the magnitude of the center hvs, so it doesn't have to re-calculate them each time we do cossim
         // If we really wanted spped, we should just use hamming distance. 
-        //distances[k] 
+        //scores[k] 
         int score = D - __hetero_hdc_hamming_distance<D, int>(encoded_hv, cluster_center); 
         //int score = __hetero_hdc_cossim<D, int>(encoded_hv, cluster_center); 
-        // TOOD: There is some weird stuff going on with the sign in the FPGA implementation, look into that.
+        
         if (score > max_score) {
             max_score = score;
             max_idx = k;
         }
     } */
-    
+
 
    __hetero_task_end(task1);
     }
     {
    void* task2 = __hetero_task_begin(
-        /* Input Buffers: 1*/ 2 + 1, distances_ptr, distances_size, labels, labels_size,
+        /* Input Buffers: 1*/ 4 + 1, scores_ptr, scores_size, labels, labels_size, encoded_hv_ptr, encoded_hv_size, temp_clusters_ptr, temp_clusters_size,
         /* paramters: 1*/      encoded_hv_idx,
-        /* Output Buffers: 1*/ 1,  labels, labels_size, "clustering_step_2_task"
+        /* Output Buffers: 1*/ 1,  labels, labels_size, "find_score_and_update_task"
     );
 
-    __hypervector__<K, int> distances = *distances_ptr;
+    __hypervector__<K, int> scores = *scores_ptr;
 
-    int min_distance = distances[0][0];
-    int min_idx = 0;
+    // IF using hamming distance:
+    int max_score = scores[0][0];
+    int max_idx = 0;
 
     for (int k = 0; k < K; k++) {
-        int dist = distances[0][k];
-        if (dist < min_distance) {
-            min_distance = dist;
-            min_idx = k;
+        int dist = scores[0][k];
+        if (dist < max_score) {
+            max_score = max_score;
+            max_idx = k;
         }
     }
-    //hv dist = __hetero_hdc_hamming_distance<K, D, int>(clusters, encoded_hv);
-    // End Task
-
-    // New task to find max idx.
-    
     // Write labels
-    labels[encoded_hv_idx] = min_idx;
+    labels[encoded_hv_idx] = max_idx;
 
+    // TODO: Should this be a separate task??
 
     // Accumulate to temp clusters
-    //auto temp = __hetero_hdc_get_matrix_row<K, D, int>(*temp_clusters_ptr, K, D, max_idx);
-    //__hetero_hdc_set_matrix_row<K, D, int>(*temp_clusters_ptr, temp += encoded_hv, max_idx);
+    auto temp = __hetero_hdc_hypervector<D, int>();
+    temp = __hetero_hdc_get_matrix_row<K, D, int>(*temp_clusters_ptr, K, D, max_idx);
+    //temp = temp + *encoded_hv_ptr; // May need an instrinsic for this.
+    __hetero_hdc_set_matrix_row<K, D, int>(*temp_clusters_ptr, temp, max_idx); // How do we normalize?
 
     __hetero_task_end(task2);
     }
@@ -152,7 +144,7 @@ void root_node( /* Input buffers: 2*/
                 __hypervector__<D, int>* encoded_hv_ptr, size_t encoded_hv_size, // // __hypervector__<D, binary>
                 __hypermatrix__<K, D, int>* clusters_ptr, size_t clusters_size, // __hypermatrix__<K, D, binary>
                 __hypermatrix__<K, D, int>* temp_clusters_ptr, size_t temp_clusters_size, // ALSO AN OUTPUT
-                __hypervector__<K, int>* distances_ptr, size_t distances_size,
+                __hypervector__<K, int>* scores_ptr, size_t scores_size,
                 /* Parameters: 2*/
                 int labels_index, int convergence_threshold, // <- not used.
                 /* Output Buffers: 1*/
@@ -176,13 +168,13 @@ void root_node( /* Input buffers: 2*/
         /* Input Buffers: 5 */  5 + 1, 
                                 encoded_hv_ptr, encoded_hv_size, clusters_ptr, clusters_size, 
                                 temp_clusters_ptr, temp_clusters_size, labels, labels_size,
-                                distances_ptr, distances_size,
+                                scores_ptr, scores_size,
         /* Parameters: 1 */     labels_index,
         /* Output Buffers: 1 */ 2, labels, labels_size, temp_clusters_ptr, temp_clusters_size,
         "clustering_task"  
     );
 
-    clustering_node<D, K, N_VEC>(encoded_hv_ptr, encoded_hv_size, clusters_ptr, clusters_size, temp_clusters_ptr, temp_clusters_size, distances_ptr, distances_size, labels_index, labels, labels_size); 
+    clustering_node<D, K, N_VEC>(encoded_hv_ptr, encoded_hv_size, clusters_ptr, clusters_size, temp_clusters_ptr, temp_clusters_size, scores_ptr, scores_size, labels_index, labels, labels_size); 
 
     __hetero_task_end(clustering_task);
 

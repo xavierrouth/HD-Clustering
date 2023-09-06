@@ -36,6 +36,7 @@ void datasetBinaryRead(std::vector<int> &data, std::string path){
 		data.push_back(temp);
 	}
 	file_.close();
+	return;
 }
 
 int initialize_hv(int* datapoint_vector, size_t loop_index_var) {
@@ -43,6 +44,8 @@ int initialize_hv(int* datapoint_vector, size_t loop_index_var) {
 	return datapoint_vector[loop_index_var];
 }
 
+//We need a seed ID. To generate in a random yet determenistic (for later debug purposes) fashion, 
+// we use bits of log2 as some random stuff.
 int initialize_rp_seed(size_t loop_index_var) {
 	int i = loop_index_var / 32;
 	int j = loop_index_var % 32;
@@ -54,7 +57,6 @@ int initialize_rp_seed(size_t loop_index_var) {
 	int ele = temp2 & (0x01 << j); //temp2 && (0x01 << j);
 
 	//std::cout << ele << "\n";
-
 	if (ele) {
 		return 1;
 	}
@@ -63,20 +65,22 @@ int initialize_rp_seed(size_t loop_index_var) {
 	}
 }
 
-
 int main(int argc, char** argv)
 {
 	auto t_start = std::chrono::high_resolution_clock::now();
 	std::cout << "Main Starting" << std::endl;
 
-	srand(time(NULL));
-   
+	//srand(time(NULL));
+
+	std::cout << "Read Data Starting" << std::endl;
+
 	std::vector<int> X_data;
 	std::vector<int> y_data;
 	datasetBinaryRead(X_data, X_data_path);
 	datasetBinaryRead(y_data, y_data_path);
 
-	std::cout << "Read Data Starting" << std::endl;
+	
+	/*
 	int shuffle_arr[y_data.size()];
 	//srand (time(NULL));
 	
@@ -103,24 +107,26 @@ int main(int argc, char** argv)
 		}
 		X_data = X_data_shuffled;
 		y_data = y_data_shuffled;
-	}	
+	}	*/
 	
 	assert(N_SAMPLE == y_data.size());
 	 
-	int* input_vectors = X_data.data();
-	// N_FEAT is number of entries per vector
-	size_t input_vector_size = N_FEAT * sizeof(int); // Size of a single vector
-
-	int labels[N_SAMPLE]; // Does this need to be malloced?
-	// N_SAMPLE is number of input vectors
-	size_t labels_size = N_SAMPLE * sizeof(int);
-
 	auto t_elapsed = std::chrono::high_resolution_clock::now() - t_start;
 	long mSec = std::chrono::duration_cast<std::chrono::milliseconds>(t_elapsed).count();
 	long mSec1 = mSec;
 	std::cout << "Reading data took " << mSec << " mSec" << std::endl;
 
+	int* input_vectors = X_data.data();
+	// N_FEAT is number of entries per vector
+	size_t input_vector_size = N_FEAT * sizeof(int); // Size of a single vector
+
+	int* labels = new int[N_SAMPLE]; // Does this need to be malloced?
+	// N_SAMPLE is number of input vectors
+	size_t labels_size = N_SAMPLE * sizeof(int);
+
 	t_start = std::chrono::high_resolution_clock::now();
+
+	
 
 	// Host allocated memory 
 	__hypervector__<Dhv, int> encoded_hv = __hetero_hdc_hypervector<Dhv, int>();
@@ -141,9 +147,9 @@ int main(int argc, char** argv)
 	__hypermatrix__<N_CENTER, Dhv, int> clusters_temp = __hetero_hdc_hypermatrix<N_CENTER, Dhv, int>();
 	__hypermatrix__<N_CENTER, Dhv, int>* clusters_temp_ptr = &clusters_temp;
 
-	__hypervector__<N_CENTER, int> distances = __hetero_hdc_hypervector<N_CENTER, int>();
-	__hypervector__<N_CENTER, int>* distances_ptr = &distances;
-	size_t distances_size = N_CENTER * sizeof(int);
+	__hypervector__<N_CENTER, int> scores = __hetero_hdc_hypervector<N_CENTER, int>();
+	__hypervector__<N_CENTER, int>* scores_ptr = &scores;
+	size_t scores_size = N_CENTER * sizeof(int);
 
 	// Encoding matrix: First we write into rp_matrix_transpose, then transpose it to get rp_matrix,
 	// which is the correct dimensions for encoding input features.
@@ -152,12 +158,13 @@ int main(int argc, char** argv)
 	__hypermatrix__<Dhv, N_FEAT, int>* rp_matrix_ptr = &rp_matrix;
 	size_t rp_matrix_size = N_FEAT * Dhv * sizeof(int);
 
+	// Create seed hv using 'initialize_rp_seed'
 	__hypervector__<Dhv, int> rp_seed = __hetero_hdc_create_hypervector<Dhv, int>(0, (void*) initialize_rp_seed);
 
 	std::cout << "Dimension over 32: " << Dhv/32 << std::endl;
-	//We need a seed ID. To generate in a random yet determenistic (for later debug purposes) fashion, we use bits of log2 as some random stuff.
 	
-	print_hv<Dhv, int>(rp_seed);
+	// {}
+	//print_hv<Dhv, int>(rp_seed);
 	std::cout << "After seed generation\n";
 
 	// Dhv needs to be greater than N_FEAT for the orthognality to hold.
@@ -168,23 +175,25 @@ int main(int argc, char** argv)
 	// Each row is just a wrap shift of the seed.
 	for (int i = 0; i < N_FEAT; i++) {
 		row = __hetero_hdc_wrap_shift<Dhv, int>(rp_seed, i);
-		print_hv<Dhv, int>(row);
+		//print_hv<Dhv, int>(row);
 		__hetero_hdc_set_matrix_row<N_FEAT, Dhv, int>(rp_matrix_transpose, row, i);
 	} 
 
 	// Now transpose in order to be able to multiply with input hv in DFG.
 	rp_matrix = __hetero_hdc_matrix_transpose<N_FEAT, Dhv, int>(rp_matrix_transpose, N_FEAT, Dhv);
-	
-	std::cout << "Transpose of encoding matrix:" << std::endl;
+
 	// Make sure transpose worked:
+	/*
+	std::cout << "Transpose of encoding matrix:" << std::endl;
 	__hypervector__<N_FEAT, int> tmp = __hetero_hdc_hypervector<N_FEAT, int>();
 	for (int i = 0 ; i < Dhv; i++) {
 		tmp = __hetero_hdc_get_matrix_row<Dhv, N_FEAT, int>(rp_matrix, Dhv, N_FEAT, i);
-		//print_hv<N_FEAT, int>(tmp);
-	}
+		print_hv<N_FEAT, int>(tmp);
+	} */
+
 	// Print out at the end here.
 	//print_hv<N_FEAT, int>(row);
-
+	std::cout << "Start encoding cluster centers, k = " << N_CENTER << std::endl;
 	// Initialize cluster hvs.
 	for (int k = 0; k < N_CENTER; k++) {
 		__hypervector__<N_FEAT, int> datapoint_hv = __hetero_hdc_create_hypervector<N_FEAT, int>(1, (void*) initialize_hv, &input_vectors[k * N_FEAT]);
@@ -208,15 +217,15 @@ int main(int argc, char** argv)
 		// Note cluster vs clusters
 		__hetero_hdc_set_matrix_row<N_CENTER, Dhv, int>(*clusters_ptr, *cluster_ptr, k);
 
+		// Print the encoded clusters
 		// Cluster temp is used for printing
 		__hypervector__<Dhv, int> cluster_temp = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, int>(*clusters_ptr, N_CENTER, Dhv, k);
-		std::cout << k << " ";
+		//std::cout << k << " ";
 		//print_hv<Dhv, int>(cluster_temp);
 	}
-
-	// Print the encoded clusters
+	std::cout << "Done encoding cluster centers " << std::endl;
+	
 	for (int i = 0; i < EPOCH; i++) {
-
 		// Can we normalize the hypervectors here or do we have to do that in the DFG.
 		for (int j = 0; j < N_SAMPLE; j++) {
 			__hypervector__<N_FEAT, int> datapoint_hv = __hetero_hdc_create_hypervector<N_FEAT, int>(1, (void*) initialize_hv, &input_vectors[j * N_FEAT]);
@@ -230,7 +239,7 @@ int main(int argc, char** argv)
 				encoded_hv_ptr, encoded_hv_size,// false,
 				clusters_ptr, clusters_size, //false,
 				clusters_temp_ptr, clusters_size, //false,
-				distances_ptr, distances_size, //false
+				scores_ptr, scores_size, //false
 				/* Parameters: 2*/
 				j, 0, 
 				/* Output Buffers: 1*/ 
@@ -243,7 +252,6 @@ int main(int argc, char** argv)
 		// then update clusters and copy clusters_tmp to clusters, 
 
 		// Calcualte eucl maginutde of each cluster HV before copying it over?.
-
 		// TODO: Move to DAG
 		for (int k = 0; k < N_CENTER; k++) {
 			// set temp_clusters -> clusters
