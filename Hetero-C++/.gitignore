@@ -5,3 +5,6 @@ host-fpga
 *.aoco
 *.temp
 dump*
+
+*.dot
+tmp

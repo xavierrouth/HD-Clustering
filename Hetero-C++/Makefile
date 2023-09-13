@@ -54,4 +54,4 @@ build/output.ll: build/hpvmcompiled.cpu.ll # build/cpu_test.hpvmcompiled.ll
 .PHONY: clean
 
 clean:
-	rm -rf build/*.ll
+	rm -rf *.dot build/*.ll

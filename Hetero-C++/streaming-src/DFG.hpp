@@ -126,7 +126,7 @@ void clustering_node(/* Input Buffers: 3*/
     // Accumulate to temp clusters
     auto temp = __hetero_hdc_hypervector<D, int>();
     temp = __hetero_hdc_get_matrix_row<K, D, int>(temp_clusters, K, D, max_idx);
-    // temp = __hetero_hdc_sum<D, int>(temp, *encoded_hv_ptr); // May need an instrinsic for this.
+    temp = __hetero_hdc_sum<D, int>(temp, *encoded_hv_ptr); // May need an instrinsic for this.
     __hetero_hdc_set_matrix_row<K, D, int>(temp_clusters, temp, max_idx); // How do we normalize?
 
     __hetero_task_end(task2);
