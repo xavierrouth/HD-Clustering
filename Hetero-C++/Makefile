@@ -1,3 +1,6 @@
+HPVM_INSTALL_DIR := /home/arnoor2/hpvm_hdc/hpvm/hpvm
+HPVM_BUILD_DIR := $(HPVM_INSTALL_DIR)/build/
+
 INCLUDES := -I$(HPVM_INSTALL_DIR)/include -I$(HPVM_INSTALL_DIR)/benchmarks/include -I$(HPVM_INSTALL_DIR)/projects/hpvm-hdc -I$(HPVM_INSTALL_DIR)/projects/hetero-c++/test/include -I./streaming-src
 
 HPVM_LIB := $(HPVM_INSTALL_DIR)/build/lib
@@ -9,7 +12,7 @@ CUDA_PATH:=/software/cuda-9.1
 OPENCL_PATH:=$(CUDA_PATH)
 OPENCL_LIB_PATH:=$(OPENCL_PATH/lib64)
 
-CFLAGS := -O1 -fenable-matrix -ftime-report -fno-discard-value-names -fno-exceptions -lm -lrt -pthread -lOpenCL
+CFLAGS := -O1 -fenable-matrix  -fno-discard-value-names -fno-exceptions -lm -lrt -pthread -lOpenCL
 
 # PARAMETERS := -DHPVM -DDEVICE=hpvm::CPU_TARGET
 
@@ -30,15 +33,15 @@ build/hpvm.genhdc.cpu.ll: build/host.cpu.ll
 
 # Lower HDC Intrinsics
 build/hdc.lowered.cpu.ll: build/hpvm.genhdc.cpu.ll #hpvm.
-	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/LLVMHPVMHDC.so -debug -lower-hdc $< -S -o $@
+	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/LLVMHPVMHDC.so  -lower-hdc -enable-hcc  -dce  $< -S -o $@
 
 # HCC -> HPVM
 build/hpvmc.cpu.ll: build/hdc.lowered.cpu.ll
-	$(HPVM_BIN)/hcc $< -declsfile $(HPVM_DECLS_FILE) -sanitise-funcs --dot-dfg -S -o $@
+	$(HPVM_BIN)/hcc $< -declsfile $(HPVM_DECLS_FILE) -sanitise-funcs --dot-dfg --skip-verify -S -o $@
 
 # GenHPVM for the HPVM IR
 build/hpvm.cpu.ll: build/hpvmc.cpu.ll
-	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/HPVMGenHPVM.so -mem2reg -genhpvm $< -S -o $@
+	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/HPVMGenHPVM.so -dce -mem2reg -genhpvm $< -S -o $@
 
 # Other HPVM Passes
 build/hpvmcompiled.cpu.ll: build/hpvm.cpu.ll
