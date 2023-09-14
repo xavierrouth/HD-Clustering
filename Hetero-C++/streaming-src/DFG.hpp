@@ -31,6 +31,12 @@ void rp_encoding_node(/* Input Buffers: 2*/
     );
     
     __hypervector__<D, int> encoded_hv = __hetero_hdc_matmul<D, N_FEATURES, int>(*input_datapoint_ptr, *rp_matrix_ptr); 
+    // Uses the output_hv_ptr for the buffer. So that we can lower to 
+    // additional tasks. We should do an optimization in the bufferization
+    // analysis to re-use the same buffer (especially those coming from the
+    // formal parameters) to enable more of these tasks to become parallel loops.
+    *output_hv_ptr = encoded_hv;
+
     __hypervector__<D, int> bipolar_encoded_hv = __hetero_hdc_sign<D, int>(encoded_hv);
     *output_hv_ptr = bipolar_encoded_hv;
 
