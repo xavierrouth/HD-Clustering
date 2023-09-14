@@ -15,7 +15,7 @@ typedef int binary;
 //
 // RP encoding reduces N_features -> D 
 template<int D, int N_FEATURES>
-void rp_encoding_node(/* Input Buffers: 2*/
+void  rp_encoding_node(/* Input Buffers: 2*/
         __hypermatrix__<D, N_FEATURES, int>* rp_matrix_ptr, size_t rp_matrix_size, // __hypermatrix__<N_FEATURES, D, binary>
         __hypervector__<N_FEATURES, int>* input_datapoint_ptr, size_t input_datapoint_size, // __hypervector__<N_FEATURES, int> 
         /* Output Buffers: 1*/
@@ -46,12 +46,48 @@ void rp_encoding_node(/* Input Buffers: 2*/
     return;
 }
 
+
+
+// RP encoding reduces N_features -> D 
+template<int D, int N_FEATURES>
+void  rp_encoding_node_copy(/* Input Buffers: 2*/
+        __hypermatrix__<D, N_FEATURES, int>* rp_matrix_ptr, size_t rp_matrix_size, // __hypermatrix__<N_FEATURES, D, binary>
+        __hypervector__<N_FEATURES, int>* input_datapoint_ptr, size_t input_datapoint_size, // __hypervector__<N_FEATURES, int> 
+        /* Output Buffers: 1*/
+        __hypervector__<D, int>* output_hv_ptr, size_t output_hv_size) { // __hypervector__<D, binary>
+    
+    void* section = __hetero_section_begin();
+
+    void* task = __hetero_task_begin(
+        /* Input Buffers: 2*/ 3, rp_matrix_ptr, rp_matrix_size, input_datapoint_ptr, input_datapoint_size, output_hv_ptr, output_hv_size,
+        /* Parameters: 0*/
+        /* Output Buffers: 1*/ 1, output_hv_ptr, output_hv_size,
+        "inner_rp_encoding_copy_task"
+    );
+    
+    __hypervector__<D, int> encoded_hv = __hetero_hdc_matmul<D, N_FEATURES, int>(*input_datapoint_ptr, *rp_matrix_ptr); 
+    // Uses the output_hv_ptr for the buffer. So that we can lower to 
+    // additional tasks. We should do an optimization in the bufferization
+    // analysis to re-use the same buffer (especially those coming from the
+    // formal parameters) to enable more of these tasks to become parallel loops.
+    *output_hv_ptr = encoded_hv;
+
+    __hypervector__<D, int> bipolar_encoded_hv = __hetero_hdc_sign<D, int>(encoded_hv);
+    *output_hv_ptr = bipolar_encoded_hv;
+
+    __hetero_task_end(task); 
+
+    __hetero_section_end(section);
+    return;
+}
+
 // clustering_node is the hetero-c++ version of searchUnit from the original FPGA code.
 // It pushes some functionality to the loop that handles the iterations.
 // For example, updating the cluster centers is not done here.
 // Initializing the centroids is not done here.
 // Node gets run max_iterations times.
 // Dimensionality, number of clusters, number of vectors
+
 
 // In the streaming implementation, this runs for each encoded HV, so N_VEC * EPOCHs times.
 template<int D, int K, int N_VEC>
@@ -107,7 +143,7 @@ void clustering_node(/* Input Buffers: 3*/
    void* task2 = __hetero_task_begin(
         /* Input Buffers: 1*/ 4 + 1, scores_ptr, scores_size, labels, labels_size, encoded_hv_ptr, encoded_hv_size, temp_clusters_ptr, temp_clusters_size,
         /* paramters: 1*/      encoded_hv_idx,
-        /* Output Buffers: 1*/ 1,  labels, labels_size, "find_score_and_update_task"
+        /* Output Buffers: 1*/ 2,  temp_clusters_ptr, temp_clusters_size, labels, labels_size, "find_score_and_update_task"
     );
 
     __hypervector__<K, int> scores = *scores_ptr;
@@ -130,8 +166,8 @@ void clustering_node(/* Input Buffers: 3*/
     __hypermatrix__<K, D, int> temp_clusters = *temp_clusters_ptr;
 
     // Accumulate to temp clusters
-    auto temp = __hetero_hdc_hypervector<D, int>();
-    temp = __hetero_hdc_get_matrix_row<K, D, int>(temp_clusters, K, D, max_idx);
+    //auto temp = __hetero_hdc_hypervector<D, int>();
+    auto temp = __hetero_hdc_get_matrix_row<K, D, int>(temp_clusters, K, D, max_idx);
     temp = __hetero_hdc_sum<D, int>(temp, *encoded_hv_ptr); // May need an instrinsic for this.
     __hetero_hdc_set_matrix_row<K, D, int>(temp_clusters, temp, max_idx); // How do we normalize?
 
@@ -172,8 +208,10 @@ void root_node( /* Input buffers: 2*/
 
     void* clustering_task = __hetero_task_begin(
         /* Input Buffers: 5 */  5 + 1, 
-                                encoded_hv_ptr, encoded_hv_size, clusters_ptr, clusters_size, 
-                                temp_clusters_ptr, temp_clusters_size, labels, labels_size,
+                                encoded_hv_ptr, encoded_hv_size, 
+                                clusters_ptr, clusters_size, 
+                                temp_clusters_ptr, temp_clusters_size, 
+                                labels, labels_size,
                                 scores_ptr, scores_size,
         /* Parameters: 1 */     labels_index,
         /* Output Buffers: 1 */ 2, labels, labels_size, temp_clusters_ptr, temp_clusters_size,

@@ -206,7 +206,7 @@ int main(int argc, char** argv)
 		// Encode the first N_CENTER hypervectors and set them to be the clusters.
 
 		void* initialize_DFG = __hetero_launch(
-			(void*) rp_encoding_node<Dhv, N_FEAT>,
+			(void*) rp_encoding_node_copy<Dhv, N_FEAT>,
 			2 + 1,
 			/* Input Buffers: 2*/ 
 			rp_matrix_buffer, rp_matrix_size, //false,
@@ -218,6 +218,7 @@ int main(int argc, char** argv)
 		);
 
 		__hetero_wait(initialize_DFG);
+
 
 		// rp_encoding_node encodes a single cluster, which we then have to assign to our big group of clusters in cluster[s].
 		// Note cluster vs clusters
@@ -239,6 +240,7 @@ int main(int argc, char** argv)
 			__hypervector__<N_FEAT, int> datapoint_hv = __hetero_hdc_create_hypervector<N_FEAT, int>(1, (void*) initialize_hv, &input_vectors[j * N_FEAT]);
 			int* datapoint_hv_buffer = new int[N_FEAT];
 			*((__hypervector__<N_FEAT, int>*) datapoint_hv_buffer) = datapoint_hv;
+
 
 			// Root node is: Encoding -> Clustering for a single HV.
 			void *DFG = __hetero_launch(
