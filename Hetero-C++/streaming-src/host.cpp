@@ -8,6 +8,7 @@
 #include "host.h"
 #include <vector>
 #include <cassert>
+#include <cmath>
 
 #define DUMP(vec, suffix) {\
   FILE *f = fopen("dump/" #vec suffix, "w");\
@@ -47,9 +48,11 @@ int initialize_rp_seed(size_t loop_index_var) {
 	int i = loop_index_var / 32;
 	int j = loop_index_var % 32;
 
+	//std::cout << i << " " << j << "\n";
 	long double temp = log2(i+2.5) * pow(2, 31);
 	long long int temp2 = (long long int)(temp);
-	temp2 = temp2 % 2147483648; //2^31
+	//temp2 = temp2 % 2147483648;
+	temp2 = temp2 % 2147483648;
 
 	int ele = temp2 & (0x01 << j); //temp2 && (0x01 << j);
 
@@ -168,7 +171,8 @@ int main(int argc, char** argv)
 
 	std::cout << "Dimension over 32: " << Dhv/32 << std::endl;
 	//We need a seed ID. To generate in a random yet determenistic (for later debug purposes) fashion, we use bits of log2 as some random stuff.
-	
+
+	std::cout << "Seed hv:\n";
 	print_hv<Dhv, int>(rp_seed);
 	std::cout << "After seed generation\n";
 
