@@ -2,6 +2,7 @@
 
 #include <hpvm_hdc.h>
 #include <heterocc.h>
+#include <stdio.h>
 
 #undef D
 #undef N_FEATURES
@@ -29,6 +30,8 @@ void  rp_encoding_node(/* Input Buffers: 2*/
         /* Output Buffers: 1*/ 1, output_hv_ptr, output_hv_size,
         "inner_rp_encoding_task"
     );
+
+    printf("Inner_RP_Encoding_Task begin\n");
     
     __hypervector__<D, int> encoded_hv = __hetero_hdc_matmul<D, N_FEATURES, int>(*input_datapoint_ptr, *rp_matrix_ptr); 
     // Uses the output_hv_ptr for the buffer. So that we can lower to 
@@ -40,6 +43,7 @@ void  rp_encoding_node(/* Input Buffers: 2*/
     __hypervector__<D, int> bipolar_encoded_hv = __hetero_hdc_sign<D, int>(encoded_hv);
     *output_hv_ptr = bipolar_encoded_hv;
 
+    printf("Inner_RP_Encoding_Task End\n");
     __hetero_task_end(task); 
 
     __hetero_section_end(section);
@@ -64,6 +68,7 @@ void  rp_encoding_node_copy(/* Input Buffers: 2*/
         /* Output Buffers: 1*/ 1, output_hv_ptr, output_hv_size,
         "inner_rp_encoding_copy_task"
     );
+#if 0
     
     __hypervector__<D, int> encoded_hv = __hetero_hdc_matmul<D, N_FEATURES, int>(*input_datapoint_ptr, *rp_matrix_ptr); 
     // Uses the output_hv_ptr for the buffer. So that we can lower to 
@@ -74,6 +79,7 @@ void  rp_encoding_node_copy(/* Input Buffers: 2*/
 
     __hypervector__<D, int> bipolar_encoded_hv = __hetero_hdc_sign<D, int>(encoded_hv);
     *output_hv_ptr = bipolar_encoded_hv;
+#endif
 
     __hetero_task_end(task); 
 
@@ -109,11 +115,14 @@ void clustering_node(/* Input Buffers: 3*/
         /* Output Buffers: 1*/ 1,  scores_ptr, scores_size, "clustering_scoring_task"
     );
 
+    printf("Clustering_scoring_task begin\n");
+
     __hypervector__<D, int> encoded_hv = *encoded_hv_ptr;
     __hypermatrix__<K, D, int> clusters = *clusters_ptr;
     __hypervector__<K, int> scores = *scores_ptr;
 
     *scores_ptr = __hetero_hdc_hamming_distance<K, D, int>(encoded_hv, clusters);
+    printf("Clustering_scoring_task end\n");
 
     // Do we need to store the scores??
     //int scores[K]; // Store dot-products to eventually calculate similarity.
@@ -146,6 +155,8 @@ void clustering_node(/* Input Buffers: 3*/
         /* Output Buffers: 1*/ 2,  temp_clusters_ptr, temp_clusters_size, labels, labels_size, "find_score_and_update_task"
     );
 
+
+    printf("find_score_and_update_task begin\n");
     __hypervector__<K, int> scores = *scores_ptr;
 
     // IF using hamming distance:
@@ -171,6 +182,7 @@ void clustering_node(/* Input Buffers: 3*/
     temp = __hetero_hdc_sum<D, int>(temp, *encoded_hv_ptr); // May need an instrinsic for this.
     __hetero_hdc_set_matrix_row<K, D, int>(temp_clusters, temp, max_idx); // How do we normalize?
 
+    printf("find_score_and_update_task end\n");
     __hetero_task_end(task2);
     }
     __hetero_section_end(section);
@@ -194,6 +206,7 @@ void root_node( /* Input buffers: 2*/
 
     void* root_section = __hetero_section_begin();
 
+#if 0
     // Re-encode each iteration.
     void* encoding_task = __hetero_task_begin(
         /* Input Buffers: 3 */ 3, rp_matrix_ptr, rp_matrix_size, datapoint_vec_ptr, datapoint_vec_size, 
@@ -205,7 +218,6 @@ void root_node( /* Input buffers: 2*/
     rp_encoding_node<D, N_FEATURES>(rp_matrix_ptr, rp_matrix_size, datapoint_vec_ptr, datapoint_vec_size, encoded_hv_ptr, encoded_hv_size);
 
     __hetero_task_end(encoding_task);
-
     void* clustering_task = __hetero_task_begin(
         /* Input Buffers: 5 */  5 + 1, 
                                 encoded_hv_ptr, encoded_hv_size, 
@@ -221,6 +233,20 @@ void root_node( /* Input buffers: 2*/
     clustering_node<D, K, N_VEC>(encoded_hv_ptr, encoded_hv_size, clusters_ptr, clusters_size, temp_clusters_ptr, temp_clusters_size, scores_ptr, scores_size, labels_index, labels, labels_size); 
 
     __hetero_task_end(clustering_task);
+
+
+#endif
+
+    // Re-encode each iteration.
+    void* dummy_task = __hetero_task_begin(
+        /* Input Buffers: 3 */ 3, rp_matrix_ptr, rp_matrix_size, datapoint_vec_ptr, datapoint_vec_size, 
+                                encoded_hv_ptr, encoded_hv_size,
+        /* Output Buffers: 1 */ 1, encoded_hv_ptr, encoded_hv_size,
+        "dummy_task"  
+    );
+
+
+    __hetero_task_end(dummy_task);
 
     __hetero_section_end(root_section);
     return;

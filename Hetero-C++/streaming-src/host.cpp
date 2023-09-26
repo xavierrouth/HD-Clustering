@@ -2,6 +2,7 @@
 
 #ifdef HPVM
 #include <heterocc.h>
+#include <iostream>
 #include <hpvm_hdc.h>
 #include "DFG.hpp"
 #endif
@@ -18,6 +19,7 @@
 
 template <int N, typename elemTy>
 void print_hv(__hypervector__<N, elemTy> hv) {
+    return;
     std::cout << "[";
     for (int i = 0; i < N-1; i++) {
         std::cout << hv[0][i] << ", ";
@@ -209,6 +211,7 @@ int main(int argc, char** argv)
 		*((__hypervector__<N_FEAT, int> *) datapoint_hv_buffer) = datapoint_hv;
 		// Encode the first N_CENTER hypervectors and set them to be the clusters.
 
+        printf("Launching RP Encoding Copy DAG!\n");
 		void* initialize_DFG = __hetero_launch(
 			(void*) rp_encoding_node_copy<Dhv, N_FEAT>,
 			2 + 1,
@@ -223,6 +226,8 @@ int main(int argc, char** argv)
 
 		__hetero_wait(initialize_DFG);
 
+        printf("Completed RP Encoding Copy DAG!\n");
+
 
 		// rp_encoding_node encodes a single cluster, which we then have to assign to our big group of clusters in cluster[s].
 		// Note cluster vs clusters
@@ -236,15 +241,21 @@ int main(int argc, char** argv)
 		print_hv<Dhv, int>(cluster_temp);
 	}
 
-	
+
+	// Moved allocation outside of loop
+	int* datapoint_hv_buffer = new int[N_FEAT];
+
 	for (int i = 0; i < EPOCH; i++) {
 		// Can we normalize the hypervectors here or do we have to do that in the DFG.
+        printf("Epoch: %d\n", i);
 		for (int j = 0; j < N_SAMPLE; j++) {
+            //printf("Epoch: %d, N_SAMPLE: %d\n", i, j);
+
 			// We can move this allocation outside of the loop? as in allocation for scores.
 			__hypervector__<N_FEAT, int> datapoint_hv = __hetero_hdc_create_hypervector<N_FEAT, int>(1, (void*) initialize_hv, &input_vectors[j * N_FEAT]);
-			int* datapoint_hv_buffer = new int[N_FEAT];
 			*((__hypervector__<N_FEAT, int>*) datapoint_hv_buffer) = datapoint_hv;
 
+            std::cout << "Launching main DAG!: " <<i << " "<< j <<std::endl;
 
 			// Root node is: Encoding -> Clustering for a single HV.
 			void *DFG = __hetero_launch(
@@ -263,13 +274,18 @@ int main(int argc, char** argv)
 				1,
 				labels, labels_size //, false
 			);
+
+
 			__hetero_wait(DFG);
+
+            std::cout << "Completed main DAG!" << std::endl;
 		}
 		// then update clusters and copy clusters_tmp to clusters, 
 		// Calcualte eucl maginutde of each cluster HV before copying it over?.
 
 		// TODO: Move to DAG
 		for (int k = 0; k < N_CENTER; k++) {
+            printf("Outer Loop DAG, k: %d\n",k);
 			// set temp_clusters -> clusters
 			__hypervector__<Dhv, int> cluster = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, int>(clusters_temp, N_CENTER, Dhv, k);
 			// Normalize or sign?

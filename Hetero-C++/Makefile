@@ -1,3 +1,5 @@
+HPVM_INSTALL_DIR :=/home/arnoor2/hpvm_hdc/hpvm/hpvm/
+HPVM_BUILD_DIR :=$(HPVM_INSTALL_DIR)/build
 INCLUDES := -I$(HPVM_INSTALL_DIR)/include -I$(HPVM_INSTALL_DIR)/benchmarks/include -I$(HPVM_INSTALL_DIR)/projects/hpvm-hdc -I$(HPVM_INSTALL_DIR)/projects/hetero-c++/test/include -I./streaming-src
 
 HPVM_LIB := $(HPVM_INSTALL_DIR)/build/lib
@@ -31,7 +33,7 @@ build/hpvm.genhdc.cpu.ll: build/host.cpu.ll
 
 # Lower HDC Intrinsics
 build/hdc.lowered.cpu.ll: build/hpvm.genhdc.cpu.ll #hpvm.
-	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/LLVMHPVMHDC.so -lower-hdc -enable-hcc -dce -simplifycfg $< -S -o $@
+	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/LLVMHPVMHDC.so -lower-hdc  -dce -simplifycfg $< -S -o $@
 
 # HCC -> HPVM
 build/hpvmc.cpu.ll: build/hdc.lowered.cpu.ll
