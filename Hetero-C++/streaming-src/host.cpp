@@ -19,6 +19,7 @@
 
 
 
+// Created minimal failing example 
 void minimal_failing_example(){
 
 	int* rp_matrix_buffer = new int[N_FEAT * Dhv];
