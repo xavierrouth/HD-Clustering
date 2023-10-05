@@ -17,7 +17,8 @@ CFLAGS := -O1 -fenable-matrix -fno-discard-value-names -fno-exceptions -lm -lrt 
 
 # Generate Executable
 host-cpu: build/output.ll
-	$(HPVM_INSTALL_DIR)/build/bin/clang++ -I$(OPENCL_PATH)/include/CL -L$(OPENCL_LIB_PATH) -lm -lrt -pthread -lOpenCL -O2 $< -o $@
+	$(HPVM_INSTALL_DIR)/build/bin/clang++ -I$(OPENCL_PATH)/include/CL -L$(OPENCL_LIB_PATH) -lm -lrt -pthread -lOpenCL -O2 $< -o $@ 
+#
 
 # Clang Frontend to IR
 build/host.cpu.ll: streaming-src/host.cpp
@@ -26,13 +27,13 @@ build/host.cpu.ll: streaming-src/host.cpp
 
 # GenHPVM for HDC only and mem2reg
 build/hpvm.genhdc.cpu.ll: build/host.cpu.ll
-	$(HPVM_BIN)/opt -mem2reg -enable-new-pm=0 -load $(HPVM_LIB)/HPVMGenHPVM.so  -genhpvm -hpvm-hdc-only $< -S -o $@
+	$(HPVM_BIN)/opt -mem2reg -enable-new-pm=0 -load $(HPVM_LIB)/HPVMGenHPVM.so -genhpvm -hpvm-hdc-only $< -S -o $@
 # $OPT -mem2reg -enable-new-pm=0 -load $HPVM_LIB/HPVMGenHPVM.so -genhpvm  -hpvm-hdc-only $PREFIX.ll -S -o $PREFIX.genhdc.hpvm.ll
 
 # Lower HDC Intrinsics
-build/hdc.lowered.cpu.ll: build/hpvm.genhdc.cpu.ll #hpvm.
-	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/LLVMHPVMHDC.so -lower-hdc -enable-hcc -dce -simplifycfg $< -S -o $@
-
+build/hdc.lowered.cpu.ll: build/hpvm.genhdc.cpu.ll #hpvm. # -enable-hcc
+	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/LLVMHPVMHDC.so -lower-hdc -dce -simplifycfg $< -S -o $@ 
+	
 # HCC -> HPVM
 build/hpvmc.cpu.ll: build/hdc.lowered.cpu.ll
 	$(HPVM_BIN)/hcc $< -declsfile $(HPVM_DECLS_FILE) -sanitise-funcs --dot-dfg --skip-verify -S -o $@
@@ -71,7 +72,7 @@ build/hpvm.genhdc.gpu.ll: build/host.gpu.ll
 
 # Lower HDC Intrinsics
 build/hdc.lowered.gpu.ll: build/hpvm.genhdc.gpu.ll #hpvm.
-	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/LLVMHPVMHDC.so -lower-hdc -enable-hcc -dce -simplifycfg $< -S -o $@
+	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/LLVMHPVMHDC.so -vector-block-dim=1 -lower-hdc -enable-hcc -dce -simplifycfg $< -S -o $@
 
 # HCC -> HPVM
 build/hpvmc.gpu.ll: build/hdc.lowered.gpu.ll
@@ -93,7 +94,43 @@ build/output.gpu.ll: build/hpvmcompiled.gpu.ll # build/gpu_test.hpvmcompiled.ll
 	$(HPVM_INSTALL_DIR)/build/bin/llvm-link $< $(HPVM_RT) -S -o $@ 
 	$(HPVM_INSTALL_DIR)/build/bin/opt -dce -globaldce $< -S -o $<
 
+### ---------- FPGA ---------------
+
+# Generate Executable
+host-fpga: build/output.fpga.ll
+	$(HPVM_INSTALL_DIR)/build/bin/clang++ -I$(OPENCL_PATH)/include/CL -L$(OPENCL_LIB_PATH) -lm -lrt -pthread -lOpenCL -O2 $< -o $@
+
+# Clang Frontend to IR
+build/host.fpga.ll: streaming-src/host.cpp
+	$(HPVM_BIN)/clang++ -DHPVM -DDEVICE=hpvm::FPGA_TARGET $(CFLAGS) $(INCLUDES) -S -emit-llvm $^ -o $@ 
+#$HPVM_BIN/clang++ -O1 -I$OPENCL_PATH/include/CL -L$OPENCL_LIB_PATH -I$HPVM_ROOT/projects/hetero-c++/test/include/ -lm -lrt -pthread -lOpenCL  $INCLUDE_FLAG -fenable-matrix    $PREFIX.cpp -S -emit-llvm -o $PREFIX.ll
+
+# GenHPVM for HDC only and mem2reg
+build/hpvm.genhdc.fpga.ll: build/host.fpga.ll
+	$(HPVM_BIN)/opt -mem2reg -enable-new-pm=0 -load $(HPVM_LIB)/HPVMGenHPVM.so -genhpvm -hpvm-hdc-only $< -S -o $@
+# $OPT -mem2reg -enable-new-pm=0 -load $HPVM_LIB/HPVMGenHPVM.so -genhpvm  -hpvm-hdc-only $PREFIX.ll -S -o $PREFIX.genhdc.hpvm.ll
+
+# Lower HDC Intrinsics
+build/hdc.lowered.fpga.ll: build/hpvm.genhdc.fpga.ll #hpvm.
+	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/LLVMHPVMHDC.so -vector-block-dim=1 -lower-hdc -enable-hcc -dce -simplifycfg $< -S -o $@
+
+# HCC -> HPVM
+build/hpvmc.fpga.ll: build/hdc.lowered.fpga.ll
+	$(HPVM_BIN)/hcc $< -declsfile $(HPVM_DECLS_FILE) -sanitise-funcs --dot-dfg --skip-verify -S -o $@
+	$(HPVM_BIN)/opt $@ -dce -S -o $@
+
+build/hpvm.host.fpga.ll build/hpvm.kernels.fpga.ll build/hpvm.kernels.fpga.cl build/hpvm.kernels.fpga.aocx: build/hpvm.fpga.ll
+	$(HPVM_BIN)/hpvm2fpga -hm=build/hpvm.host.fpga.ll -km=build/hpvm.kernels.fpga.ll -clm=build/hpvm.kernels.fpga.cl -cxm=build/hpvm.kernels.fpga.aocx -emu -run-aoc $^
+
+
+HPVM_RT := $(HPVM_BUILD_DIR)/tools/hpvm/projects/hpvm-rt/hpvm-rt.bc
+
+# LINK HPVM RT and DCE
+build/output.fpga.ll: build//hpvm.host.fpga.ll
+	$(HPVM_INSTALL_DIR)/build/bin/llvm-link $< $(HPVM_RT) -S -o $@ 
+	$(HPVM_INSTALL_DIR)/build/bin/opt -dce -globaldce $< -S -o $<
+
 .PHONY: clean
 
 clean:
-	rm -rf *.dot build/*.ll build/*
+	rm -rf *.dot build/*.ll build/* host-gpu host-cpu

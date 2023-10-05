@@ -10,6 +10,8 @@
 #include <cassert>
 #include <cmath>
 
+
+
 #define DUMP(vec, suffix) {\
   FILE *f = fopen("dump/" #vec suffix, "w");\
   if (f) fwrite(vec.data(), sizeof(vec[0]), vec.size(), f);\
@@ -38,13 +40,14 @@ void datasetBinaryRead(std::vector<int> &data, std::string path){
 	}
 	file_.close();
 }
-
-int initialize_hv(int* datapoint_vector, size_t loop_index_var) {
+template <typename T>
+T initialize_hv(T* datapoint_vector, size_t loop_index_var) {
 	//std::cout << ((float*)datapoint_vector)[loop_index_var] << "\n";
 	return datapoint_vector[loop_index_var];
 }
 
-int initialize_rp_seed(size_t loop_index_var) {
+template <typename T>
+T initialize_rp_seed(size_t loop_index_var) {
 	int i = loop_index_var / 32;
 	int j = loop_index_var % 32;
 
@@ -59,10 +62,10 @@ int initialize_rp_seed(size_t loop_index_var) {
 	//std::cout << ele << "\n";
 
 	if (ele) {
-		return 1;
+		return (T) 1;
 	}
 	else {
-		return -1;
+		return (T) -1;
 	}
 }
 
@@ -111,10 +114,12 @@ int main(int argc, char** argv)
 	}	
 	
 	assert(N_SAMPLE == y_data.size());
-	 
-	int* input_vectors = X_data.data();
+	
+	std::vector<hvtype> floatVec(X_data.begin(), X_data.end());
+
+	hvtype* input_vectors = floatVec.data();
 	// N_FEAT is number of entries per vector
-	size_t input_vector_size = N_FEAT * sizeof(int); // Size of a single vector
+	size_t input_vector_size = N_FEAT * sizeof(hvtype); // Size of a single vector
 
 	int labels[N_SAMPLE]; // Does this need to be malloced?
 	// N_SAMPLE is number of input vectors
@@ -128,71 +133,71 @@ int main(int argc, char** argv)
 	t_start = std::chrono::high_resolution_clock::now();
 
 	// Host allocated memory 
-	__hypervector__<Dhv, int> encoded_hv = __hetero_hdc_hypervector<Dhv, int>();
-	int* encoded_hv_buffer = new int[Dhv];
-	*((__hypervector__<Dhv, int>*) encoded_hv_buffer) = encoded_hv;
-	size_t encoded_hv_size = Dhv * sizeof(int);
+	__hypervector__<Dhv, hvtype> encoded_hv = __hetero_hdc_hypervector<Dhv, hvtype>();
+	hvtype* encoded_hv_buffer = new hvtype[Dhv];
+	*((__hypervector__<Dhv, hvtype>*) encoded_hv_buffer) = encoded_hv;
+	size_t encoded_hv_size = Dhv * sizeof(hvtype);
 	
 	// Used to store a temporary cluster for initializion
-	__hypervector__<Dhv, int> cluster = __hetero_hdc_hypervector<Dhv, int>();
-	int* cluster_buffer = new int[Dhv];
+	__hypervector__<Dhv, hvtype> cluster = __hetero_hdc_hypervector<Dhv, hvtype>();
+	hvtype* cluster_buffer = new hvtype[Dhv];
 	//*(__hypervector__<Dhv, int>* cluster_buffer) = cluster;
 	//__hypervector__<Dhv, int>* cluster_ptr = &cluster;
-	size_t cluster_size = Dhv * sizeof(int);
+	size_t cluster_size = Dhv * sizeof(hvtype);
 
 	// Read from during clustering, updated from clusters_temp.
-	__hypermatrix__<N_CENTER, Dhv, int> clusters = __hetero_hdc_hypermatrix<N_CENTER, Dhv, int>();
-	int* clusters_buffer = new int[N_CENTER * Dhv];
+	__hypermatrix__<N_CENTER, Dhv, hvtype> clusters = __hetero_hdc_hypermatrix<N_CENTER, Dhv, hvtype>();
+	hvtype* clusters_buffer = new hvtype[N_CENTER * Dhv];
 	//*((__hypermatrix__<N_CENTER, Dhv, int>*) clusters_buffer) = clusters;
 	//__hypermatrix__<N_CENTER, Dhv, int>* clusters__ptr = &clusters;
-	size_t clusters_size = N_CENTER * Dhv * sizeof(int);
+	size_t clusters_size = N_CENTER * Dhv * sizeof(hvtype);
 
 	// Gets written into during clustering, then is used to update 'clusters' at the end.
-	__hypermatrix__<N_CENTER, Dhv, int> clusters_temp = __hetero_hdc_hypermatrix<N_CENTER, Dhv, int>();
-	int* clusters_temp_buffer = new int[N_CENTER * Dhv];
+	__hypermatrix__<N_CENTER, Dhv, hvtype> clusters_temp = __hetero_hdc_hypermatrix<N_CENTER, Dhv, hvtype>();
+	hvtype* clusters_temp_buffer = new hvtype[N_CENTER * Dhv];
 	//*((__hypermatrix__<N_CENTER, Dhv, int>*) clusters_temp_buffer) = clusters_temp;
 	//__hypermatrix__<N_CENTER, Dhv, int>* clusters_temp_ptr = &clusters_temp;
 
 	// Temporarily store scores, allows us to split score calcuation into a separte task.
-	__hypervector__<Dhv, int> scores = __hetero_hdc_hypervector<Dhv, int>();
-	int* scores_buffer = new int[N_CENTER];
-	size_t scores_size = N_CENTER * sizeof(int);
+	__hypervector__<Dhv, hvtype> scores = __hetero_hdc_hypervector<Dhv, hvtype>();
+	hvtype* scores_buffer = new hvtype[N_CENTER];
+	size_t scores_size = N_CENTER * sizeof(hvtype);
 
 	// Encoding matrix: First we write into rp_matrix_transpose, then transpose it to get rp_matrix,
 	// which is the correct dimensions for encoding input features.
-	__hypermatrix__<N_FEAT, Dhv, int> rp_matrix_transpose = __hetero_hdc_hypermatrix<N_FEAT, Dhv, int>();
-	__hypermatrix__<Dhv, N_FEAT, int> rp_matrix = __hetero_hdc_hypermatrix<Dhv, N_FEAT, int>();
-	int* rp_matrix_buffer = new int[N_FEAT * Dhv];
+	__hypermatrix__<N_FEAT, Dhv, hvtype> rp_matrix_transpose = __hetero_hdc_hypermatrix<N_FEAT, Dhv, hvtype>();
+	__hypermatrix__<Dhv, N_FEAT, hvtype> rp_matrix = __hetero_hdc_hypermatrix<Dhv, N_FEAT, hvtype>();
+	hvtype* rp_matrix_buffer = new hvtype[N_FEAT * Dhv];
 
 	//__hypermatrix__<Dhv, N_FEAT, int>* rp_matrix_ptr = &rp_matrix;
-	size_t rp_matrix_size = N_FEAT * Dhv * sizeof(int);
+	size_t rp_matrix_size = N_FEAT * Dhv * sizeof(hvtype);
 
-	__hypervector__<Dhv, int> rp_seed = __hetero_hdc_create_hypervector<Dhv, int>(0, (void*) initialize_rp_seed);	
+	__hypervector__<Dhv, hvtype> rp_seed = __hetero_hdc_create_hypervector<Dhv, hvtype>(0, (void*) initialize_rp_seed<hvtype>);	
 
 	std::cout << "Dimension over 32: " << Dhv/32 << std::endl;
 	//We need a seed ID. To generate in a random yet determenistic (for later debug purposes) fashion, we use bits of log2 as some random stuff.
 
 	std::cout << "Seed hv:\n";
-	print_hv<Dhv, int>(rp_seed);
+	print_hv<Dhv, hvtype>(rp_seed);
 	std::cout << "After seed generation\n";
 
 	// Dhv needs to be greater than N_FEAT for the orthognality to hold.
 
 	// Generate the random projection matrix. Dhv rows, N_FEAT cols, so Dhv x N_FEAT.
-	__hypervector__<Dhv, int> row = __hetero_hdc_hypervector<Dhv, int>();
+	__hypervector__<Dhv, hvtype> row = __hetero_hdc_hypervector<Dhv, hvtype>();
 
 	// Each row is just a wrap shift of the seed.
 	for (int i = 0; i < N_FEAT; i++) {
-		row = __hetero_hdc_wrap_shift<Dhv, int>(rp_seed, i);
+		row = __hetero_hdc_wrap_shift<Dhv, hvtype>(rp_seed, i);
 		//print_hv<Dhv, int>(row);
-		__hetero_hdc_set_matrix_row<N_FEAT, Dhv, int>(rp_matrix_transpose, row, i);
+		__hetero_hdc_set_matrix_row<N_FEAT, Dhv, hvtype>(rp_matrix_transpose, row, i);
 	} 
 
 	// Now transpose in order to be able to multiply with input hv in DFG.
-	rp_matrix = __hetero_hdc_matrix_transpose<N_FEAT, Dhv, int>(rp_matrix_transpose, N_FEAT, Dhv);
+	rp_matrix = __hetero_hdc_matrix_transpose<N_FEAT, Dhv, hvtype>(rp_matrix_transpose, N_FEAT, Dhv);
 
 	// Make sure transpose worked:
-	std::cout << "Transpose of encoding matrix:" << std::endl;
+	//std::cout << "Transpose of encoding matrix:" << std::endl;
 	//__hypervector__<N_FEAT, int> tmp = __hetero_hdc_hypervector<N_FEAT, int>();
 	//for (int i = 0 ; i < Dhv; i++) {
 	//	tmp = __hetero_hdc_get_matrix_row<Dhv, N_FEAT, int>(rp_matrix, Dhv, N_FEAT, i);
@@ -201,12 +206,13 @@ int main(int argc, char** argv)
 	// Print out at the end here.
 	//print_hv<N_FEAT, int>(row);
 
-	*((__hypermatrix__<Dhv, N_FEAT, int>*) rp_matrix_buffer) = rp_matrix;
+	*((__hypermatrix__<Dhv, N_FEAT, hvtype>*) rp_matrix_buffer) = rp_matrix;
 	// Initialize cluster hvs.
+	std::cout << "Init cluster hvs:" << std::endl;
 	for (int k = 0; k < N_CENTER; k++) {
-		__hypervector__<N_FEAT, int> datapoint_hv = __hetero_hdc_create_hypervector<N_FEAT, int>(1, (void*) initialize_hv, &input_vectors[k * N_FEAT]);
-		int* datapoint_hv_buffer = new int[N_FEAT];
-		*((__hypervector__<N_FEAT, int> *) datapoint_hv_buffer) = datapoint_hv;
+		__hypervector__<N_FEAT, hvtype> datapoint_hv = __hetero_hdc_create_hypervector<N_FEAT, hvtype>(1, (void*) initialize_hv<hvtype>, &input_vectors[k * N_FEAT]);
+		hvtype* datapoint_hv_buffer = new hvtype[N_FEAT];
+		*((__hypervector__<N_FEAT, hvtype> *) datapoint_hv_buffer) = datapoint_hv;
 		// Encode the first N_CENTER hypervectors and set them to be the clusters.
 
 		void* initialize_DFG = __hetero_launch(
@@ -228,23 +234,30 @@ int main(int argc, char** argv)
 		// Note cluster vs clusters
 		//__hetero_hdc_set_matrix_row<N_CENTER, Dhv, int>(*clusters_ptr, *cluster_ptr, k);
 		// Do these need to be casted?
-		__hetero_hdc_set_matrix_row<N_CENTER, Dhv, int>(*((__hypermatrix__<N_CENTER, Dhv, int>*) clusters_buffer), *((__hypervector__<Dhv, int>*) cluster_buffer), k);
+		__hetero_hdc_set_matrix_row<N_CENTER, Dhv, hvtype>(*((__hypermatrix__<N_CENTER, Dhv, hvtype>*) clusters_buffer), *((__hypervector__<Dhv, hvtype>*) cluster_buffer), k);
 		// Print the encoded clusters
 		// Cluster temp is used for printing
-		__hypervector__<Dhv, int> cluster_temp = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, int>(*((__hypermatrix__<N_CENTER, Dhv, int>*) clusters_buffer), N_CENTER, Dhv, k);
+		__hypervector__<Dhv, hvtype> cluster_temp = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, hvtype>(*((__hypermatrix__<N_CENTER, Dhv, hvtype>*) clusters_buffer), N_CENTER, Dhv, k);
 		std::cout << k << " ";
-		print_hv<Dhv, int>(cluster_temp);
+		print_hv<Dhv, hvtype>(cluster_temp);
 	}
 
+	std::cout << "Done init cluster hvs:" << std::endl;
+
 	
+	hvtype* datapoint_hv_buffer = new hvtype[N_FEAT]; // Moved up here <------
+	
+
 	for (int i = 0; i < EPOCH; i++) {
 		// Can we normalize the hypervectors here or do we have to do that in the DFG.
+		std::cout << "Epoch: #" << i << std::endl;
 		for (int j = 0; j < N_SAMPLE; j++) {
-			// We can move this allocation outside of the loop? as in allocation for scores.
-			__hypervector__<N_FEAT, int> datapoint_hv = __hetero_hdc_create_hypervector<N_FEAT, int>(1, (void*) initialize_hv, &input_vectors[j * N_FEAT]);
-			int* datapoint_hv_buffer = new int[N_FEAT];
-			*((__hypervector__<N_FEAT, int>*) datapoint_hv_buffer) = datapoint_hv;
 
+			// We can move this allocation outside of the loop? as in allocation for scores. Moved outside of loop to above.
+			__hypervector__<N_FEAT, hvtype> datapoint_hv = __hetero_hdc_create_hypervector<N_FEAT, hvtype>(1, (void*) initialize_hv<hvtype>, &input_vectors[j * N_FEAT]);
+			*((__hypervector__<N_FEAT, hvtype>*) datapoint_hv_buffer) = datapoint_hv;
+
+			//std::cout << "before root launch" << std::endl;
 
 			// Root node is: Encoding -> Clustering for a single HV.
 			void *DFG = __hetero_launch(
@@ -263,18 +276,28 @@ int main(int argc, char** argv)
 				1,
 				labels, labels_size //, false
 			);
-			__hetero_wait(DFG);
+			__hetero_wait(DFG); 
+
+			//std::cout << "after root launch" << std::endl;
+		
 		}
 		// then update clusters and copy clusters_tmp to clusters, 
 		// Calcualte eucl maginutde of each cluster HV before copying it over?.
 
 		// TODO: Move to DAG
+		
 		for (int k = 0; k < N_CENTER; k++) {
 			// set temp_clusters -> clusters
-			__hypervector__<Dhv, int> cluster = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, int>(clusters_temp, N_CENTER, Dhv, k);
+			__hypervector__<Dhv, hvtype> cluster = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, hvtype>(clusters_temp, N_CENTER, Dhv, k);
 			// Normalize or sign?
-			__hypervector__<Dhv, int> cluster_norm = __hetero_hdc_sign<Dhv, int>(cluster);
-			__hetero_hdc_set_matrix_row(clusters, cluster_norm, k);
+			// Don't do anything!!
+
+			#ifdef HAMMING_DIST
+			//__hypervector__<Dhv, hvtype> cluster_norm = __hetero_hdc_sign<Dhv, hvtype>(cluster);
+			__hetero_hdc_set_matrix_row(clusters, cluster, k);
+			#else
+			__hetero_hdc_set_matrix_row(clusters, cluster, k);
+			#endif
 		} 
 	}
 
