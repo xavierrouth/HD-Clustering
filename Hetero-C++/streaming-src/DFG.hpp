@@ -4,14 +4,14 @@
 #include <heterocc.h>
 #include <iostream>
 
-#define HAMMING_DIST
+//#define HAMMING_DIST
 
 #undef D
 #undef N_FEATURES
 #undef K
 
 typedef int binary;
-typedef int hvtype;
+typedef float hvtype;
 
 // RANDOM PROJECTION ENCODING!!
 // Matrix-vector mul
@@ -43,9 +43,11 @@ void  rp_encoding_node(/* Input Buffers: 2*/
     // analysis to re-use the same buffer (especially those coming from the
     // formal parameters) to enable more of these tasks to become parallel loops.
 
+    
     *output_hv_ptr = encoded_hv;
 
-    //__hypervector__<D, int> bipolar_encoded_hv = __hetero_hdc_sign<D, int>(encoded_hv);
+    // Not quantized:
+    //__hypervector__<D, hvtype> bipolar_encoded_hv = __hetero_hdc_sign<D, hvtype>(encoded_hv);
     //*output_hv_ptr = bipolar_encoded_hv;
 
     //std::cout << "encoding node end" << std::endl;
@@ -55,7 +57,6 @@ void  rp_encoding_node(/* Input Buffers: 2*/
     __hetero_section_end(section);
     return;
 }
-
 
 
 // RP encoding reduces N_features -> D 
@@ -157,6 +158,7 @@ void clustering_node(/* Input Buffers: 3*/
 
    __hetero_task_end(task1);
     }
+    
     {
    void* task2 = __hetero_task_begin(
         /* Input Buffers: 1*/ 4 + 1, scores_ptr, scores_size, labels, labels_size, encoded_hv_ptr, encoded_hv_size, temp_clusters_ptr, temp_clusters_size,
@@ -166,40 +168,44 @@ void clustering_node(/* Input Buffers: 3*/
 
     
     //std::cout << "clustering task 2" << std::endl;
-
-    
     __hypervector__<K, hvtype> scores = *scores_ptr;
-
-    // IF using hamming distance:
-    #ifdef HAMMING_DIST
-    int max_score = (int) D - scores[0][0];
-    #else
-    int max_score = (int) scores[0][0];
-    #endif
     int max_idx = 0;
 
+    // IF using hamming distance:
+    
+    #ifdef HAMMING_DIST
+    hvtype max_score = (hvtype) D - (*scores_ptr)[0][0]; // I think this is probably causing issues.
+    #else
+    hvtype max_score = (hvtype) (*scores_ptr)[0][0];
+    #endif
+    
     for (int k = 0; k < K; k++) {
         #ifdef HAMMING_DIST
-        int score = (int) D - scores[0][k];
+        hvtype score = (hvtype) D - (*scores_ptr)[0][k];
         #else
-        int score = (int)  scores[0][k];
+        hvtype score = (hvtype) (*scores_ptr)[0][k];
         #endif
+        //std::cout << score << " ";
         if (score > max_score) {
+            
             max_score = score;
             max_idx = k;
         }
-    }
+        
+    } 
     // Write labels
+    //std::cout << encoded_hv_idx << "|" << max_idx << " ";
     labels[encoded_hv_idx] = max_idx;
 
     //std::cout << "after write to labels" << std::endl;
-    __hypermatrix__<K, D, hvtype> temp_clusters = *temp_clusters_ptr;
 
     // Accumulate to temp clusters
     //auto temp = __hetero_hdc_hypervector<D, int>();
-    auto temp = __hetero_hdc_get_matrix_row<K, D, hvtype>(temp_clusters, K, D, max_idx);
+
+    // Unclear if this actually works as intended.
+    auto temp = __hetero_hdc_get_matrix_row<K, D, hvtype>(*temp_clusters_ptr, K, D, max_idx);
     temp = __hetero_hdc_sum<D, hvtype>(temp, *encoded_hv_ptr); // May need an instrinsic for this.
-    __hetero_hdc_set_matrix_row<K, D, hvtype>(temp_clusters, temp, max_idx); // How do we normalize?
+    __hetero_hdc_set_matrix_row<K, D, hvtype>(*temp_clusters_ptr, temp, max_idx); // How do we normalize?
     
     //std::cout << "clustering task 2 end" << std::endl;
 
@@ -211,17 +217,18 @@ void clustering_node(/* Input Buffers: 3*/
 
 // Dimensionality, Clusters, data point vectors, features per.
 template <int D, int K, int N_VEC, int N_FEATURES>
-void root_node( /* Input buffers: 2*/ 
+void root_node( /* Input buffers: 4*/ 
                 __hypermatrix__<D, N_FEATURES, hvtype>* rp_matrix_ptr, size_t rp_matrix_size, // __hypermatrix__<N_FEATURES, D, binary>
                 __hypervector__<N_FEATURES, hvtype>* datapoint_vec_ptr, size_t datapoint_vec_size, // Features
-                /* Local Vars: 4*/
-                __hypervector__<D, hvtype>* encoded_hv_ptr, size_t encoded_hv_size, // // __hypervector__<D, binary>
                 __hypermatrix__<K, D, hvtype>* clusters_ptr, size_t clusters_size, // __hypermatrix__<K, D, binary>
                 __hypermatrix__<K, D, hvtype>* temp_clusters_ptr, size_t temp_clusters_size, // ALSO AN OUTPUT
+                /* Local Vars: 2*/
+                __hypervector__<D, hvtype>* encoded_hv_ptr, size_t encoded_hv_size, // // __hypervector__<D, binary>
+                
                 __hypervector__<K, hvtype>* scores_ptr, size_t scores_size,
                 /* Parameters: 2*/
                 int labels_index, int convergence_threshold, // <- not used.
-                /* Output Buffers: 1*/
+                /* Output Buffers: 2*/
                 int* labels, size_t labels_size){
 
     void* root_section = __hetero_section_begin();
