@@ -139,6 +139,10 @@ int main(int argc, char** argv)
 	hvtype* encoded_hv_buffer = new hvtype[Dhv];
 	*((__hypervector__<Dhv, hvtype>*) encoded_hv_buffer) = encoded_hv;
 	size_t encoded_hv_size = Dhv * sizeof(hvtype);
+
+
+	hvtype* update_hv_ptr = new hvtype[Dhv];
+	size_t update_hv_size = Dhv * sizeof(hvtype);
 	
 	// Used to store a temporary cluster for initializion
 	__hypervector__<Dhv, hvtype> cluster = __hetero_hdc_hypervector<Dhv, hvtype>();
@@ -266,7 +270,7 @@ int main(int argc, char** argv)
 			// Root node is: Encoding -> Clustering for a single HV.
 			void *DFG = __hetero_launch(
 				(void*) root_node<Dhv, N_CENTER, N_SAMPLE, N_FEAT>,
-				/* Input Buffers: 4*/ 8 + 1,
+				/* Input Buffers: 4*/ 10,
 				&rp_matrix, rp_matrix_size, //false,
 				&datapoint_hv, input_vector_size, //true,
 				&clusters, clusters_size, //false,
@@ -274,6 +278,7 @@ int main(int argc, char** argv)
 				/* Local Var Buffers 4*/
 				encoded_hv_buffer, encoded_hv_size,// false,
 				scores_buffer, scores_size,
+                update_hv_ptr, update_hv_size,
 				j, 0, 
 				/* Output Buffers: 1*/ 
 				labels, labels_size,

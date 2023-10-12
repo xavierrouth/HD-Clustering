@@ -4,14 +4,14 @@
 #include <heterocc.h>
 #include <iostream>
 
-//#define HAMMING_DIST
+#define HAMMING_DIST
 
 #undef D
 #undef N_FEATURES
 #undef K
 
 typedef int binary;
-typedef float hvtype;
+typedef int hvtype;
 
 // RANDOM PROJECTION ENCODING!!
 // Matrix-vector mul
@@ -77,6 +77,7 @@ void  rp_encoding_node_copy(/* Input Buffers: 2*/
     );
 
     //std::cout << "encoding node copy" << std::endl;
+
     
     __hypervector__<D, hvtype> encoded_hv = __hetero_hdc_matmul<D, N_FEATURES, hvtype>(*input_datapoint_ptr, *rp_matrix_ptr); 
     // Uses the output_hv_ptr for the buffer. So that we can lower to 
@@ -109,6 +110,7 @@ void clustering_node(/* Input Buffers: 3*/
         __hypermatrix__<K, D, hvtype>* clusters_ptr, size_t clusters_size, // __hypermatrix__<K, D, binary>
         __hypermatrix__<K, D, hvtype>* temp_clusters_ptr, size_t temp_clusters_size, // ALSO AN OUTPUT
         __hypervector__<K, hvtype>* scores_ptr, size_t scores_size, // Used as Local var.
+        __hypervector__<D, hvtype>* update_hv_ptr, size_t update_hv_size,  // Used in second stage of clustering node for extracting and accumulating
         int encoded_hv_idx,
         /* Output Buffers: 1*/
         int* labels, size_t labels_size) { // Mapping of HVs to Clusters. int[N_VEC]
@@ -161,7 +163,7 @@ void clustering_node(/* Input Buffers: 3*/
     
     {
    void* task2 = __hetero_task_begin(
-        /* Input Buffers: 1*/ 4 + 1, scores_ptr, scores_size, labels, labels_size, encoded_hv_ptr, encoded_hv_size, temp_clusters_ptr, temp_clusters_size,
+        /* Input Buffers: 1*/ 6, scores_ptr, scores_size, labels, labels_size, encoded_hv_ptr, encoded_hv_size, temp_clusters_ptr, temp_clusters_size, update_hv_ptr, update_hv_size,
         /* paramters: 1*/      encoded_hv_idx,
         /* Output Buffers: 1*/ 2,  temp_clusters_ptr, temp_clusters_size, labels, labels_size, "find_score_and_update_task"
     );
@@ -203,9 +205,9 @@ void clustering_node(/* Input Buffers: 3*/
     //auto temp = __hetero_hdc_hypervector<D, int>();
 
     // Unclear if this actually works as intended.
-    auto temp = __hetero_hdc_get_matrix_row<K, D, hvtype>(*temp_clusters_ptr, K, D, max_idx);
-    temp = __hetero_hdc_sum<D, hvtype>(temp, *encoded_hv_ptr); // May need an instrinsic for this.
-    __hetero_hdc_set_matrix_row<K, D, hvtype>(*temp_clusters_ptr, temp, max_idx); // How do we normalize?
+    *update_hv_ptr =  __hetero_hdc_get_matrix_row<K, D, hvtype>(*temp_clusters_ptr, K, D, max_idx);
+    *update_hv_ptr = __hetero_hdc_sum<D, hvtype>(*update_hv_ptr, *encoded_hv_ptr); // May need an instrinsic for this.
+    __hetero_hdc_set_matrix_row<K, D, hvtype>(*temp_clusters_ptr, *update_hv_ptr, max_idx); // How do we normalize?
     
     //std::cout << "clustering task 2 end" << std::endl;
 
@@ -226,6 +228,8 @@ void root_node( /* Input buffers: 4*/
                 __hypervector__<D, hvtype>* encoded_hv_ptr, size_t encoded_hv_size, // // __hypervector__<D, binary>
                 
                 __hypervector__<K, hvtype>* scores_ptr, size_t scores_size,
+
+                __hypervector__<D, hvtype>* update_hv_ptr, size_t update_hv_size,  // Used in second stage of clustering node for extracting and accumulating
                 /* Parameters: 2*/
                 int labels_index, int convergence_threshold, // <- not used.
                 /* Output Buffers: 2*/
@@ -247,10 +251,11 @@ void root_node( /* Input buffers: 4*/
     __hetero_task_end(encoding_task);
 
     void* clustering_task = __hetero_task_begin(
-        /* Input Buffers: 5 */  5 + 1, 
+        /* Input Buffers: 5 */  7, 
                                 encoded_hv_ptr, encoded_hv_size, 
                                 clusters_ptr, clusters_size, 
                                 temp_clusters_ptr, temp_clusters_size, 
+                                update_hv_ptr, update_hv_size,
                                 labels, labels_size,
                                 scores_ptr, scores_size,
         /* Parameters: 1 */     labels_index,
@@ -258,7 +263,7 @@ void root_node( /* Input buffers: 4*/
         "clustering_task"  
     );
 
-    clustering_node<D, K, N_VEC>(encoded_hv_ptr, encoded_hv_size, clusters_ptr, clusters_size, temp_clusters_ptr, temp_clusters_size, scores_ptr, scores_size, labels_index, labels, labels_size); 
+    clustering_node<D, K, N_VEC>(encoded_hv_ptr, encoded_hv_size, clusters_ptr, clusters_size, temp_clusters_ptr, temp_clusters_size, scores_ptr, scores_size,  update_hv_ptr, update_hv_size, labels_index, labels, labels_size); 
 
     __hetero_task_end(clustering_task);
 
