@@ -13,6 +13,10 @@
 typedef int binary;
 typedef int hvtype;
 
+#ifndef DEVICE
+#define DEVICE 1
+#endif
+
 // RANDOM PROJECTION ENCODING!!
 // Matrix-vector mul
 // Encodes a single vector using a random projection matrix
@@ -27,6 +31,8 @@ void  rp_encoding_node(/* Input Buffers: 2*/
     
     void* section = __hetero_section_begin();
 
+    __hetero_hint(DEVICE);
+
     void* task = __hetero_task_begin(
         /* Input Buffers: 2*/ 3, rp_matrix_ptr, rp_matrix_size, input_datapoint_ptr, input_datapoint_size, output_hv_ptr, output_hv_size,
         /* Parameters: 0*/
@@ -36,6 +42,7 @@ void  rp_encoding_node(/* Input Buffers: 2*/
 
     //std::cout << "encoding node" << std::endl;
     
+    __hetero_hint(DEVICE);
     
     __hypervector__<D, hvtype> encoded_hv = __hetero_hdc_matmul<D, N_FEATURES, hvtype>(*input_datapoint_ptr, *rp_matrix_ptr); 
     // Uses the output_hv_ptr for the buffer. So that we can lower to 
@@ -69,6 +76,8 @@ void  rp_encoding_node_copy(/* Input Buffers: 2*/
     
     void* section = __hetero_section_begin();
 
+    __hetero_hint(1); // ROOT NODE ALWAYS ON CPU
+
     void* task = __hetero_task_begin(
         /* Input Buffers: 2*/ 3, rp_matrix_ptr, rp_matrix_size, input_datapoint_ptr, input_datapoint_size, output_hv_ptr, output_hv_size,
         /* Parameters: 0*/
@@ -77,6 +86,8 @@ void  rp_encoding_node_copy(/* Input Buffers: 2*/
     );
 
     //std::cout << "encoding node copy" << std::endl;
+
+    __hetero_hint(DEVICE);
 
     
     __hypervector__<D, hvtype> encoded_hv = __hetero_hdc_matmul<D, N_FEATURES, hvtype>(*input_datapoint_ptr, *rp_matrix_ptr); 
@@ -118,6 +129,8 @@ void clustering_node(/* Input Buffers: 3*/
     void* section = __hetero_section_begin();
     { // Scoping hack in order to have 'scores' defined in each task.
 
+    __hetero_hint(DEVICE);
+
     
     void* task1 = __hetero_task_begin(
         /* Input Buffers: 4*/ 3, encoded_hv_ptr, encoded_hv_size, clusters_ptr, clusters_size, scores_ptr, scores_size, 
@@ -125,6 +138,7 @@ void clustering_node(/* Input Buffers: 3*/
     );
 
     //std::cout << "clustering task 1" << std::endl;
+    __hetero_hint(DEVICE);
 
     __hypervector__<D, hvtype> encoded_hv = *encoded_hv_ptr;
     __hypermatrix__<K, D, hvtype> clusters = *clusters_ptr;
@@ -169,6 +183,7 @@ void clustering_node(/* Input Buffers: 3*/
     );
 
     
+    __hetero_hint(DEVICE);
     //std::cout << "clustering task 2" << std::endl;
     __hypervector__<K, hvtype> scores = *scores_ptr;
     int max_idx = 0;
@@ -236,6 +251,8 @@ void root_node( /* Input buffers: 4*/
                 int* labels, size_t labels_size){
 
     void* root_section = __hetero_section_begin();
+
+    __hetero_hint(1); // Root node always on CPU
 
     
     // Re-encode each iteration.
