@@ -1,3 +1,5 @@
+HPVM_INSTALL_DIR := /home/arnoor2/hpvm_hdc/hpvm/hpvm/
+HPVM_BUILD_DIR := $(HPVM_INSTALL_DIR)/build/
 INCLUDES := -I$(HPVM_INSTALL_DIR)/include -I$(HPVM_INSTALL_DIR)/benchmarks/include -I$(HPVM_INSTALL_DIR)/projects/hpvm-hdc -I$(HPVM_INSTALL_DIR)/projects/hetero-c++/test/include -I./streaming-src
 
 HPVM_LIB := $(HPVM_INSTALL_DIR)/build/lib
@@ -36,7 +38,7 @@ build/hdc.lowered.cpu.ll: build/hpvm.genhdc.cpu.ll #hpvm. # -enable-hcc
 	
 # HCC -> HPVM
 build/hpvmc.cpu.ll: build/hdc.lowered.cpu.ll
-	$(HPVM_BIN)/hcc $< -declsfile $(HPVM_DECLS_FILE) -sanitise-funcs --dot-dfg --skip-verify -S -o $@
+	$(HPVM_BIN)/hcc $< -declsfile $(HPVM_DECLS_FILE) -sanitise-funcs --dot-dfg  -S -o $@
 	$(HPVM_BIN)/opt $@ -dce -S -o $@
 
 # GenHPVM for the HPVM IR
