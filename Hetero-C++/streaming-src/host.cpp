@@ -77,7 +77,7 @@ int main(int argc, char** argv)
 	auto t_start = std::chrono::high_resolution_clock::now();
 	std::cout << "Main Starting" << std::endl;
 
-	srand(time(NULL));
+	//srand(time(NULL));
 
 	int EPOCH = std::atoi(argv[1]);
    
@@ -86,36 +86,14 @@ int main(int argc, char** argv)
 	datasetBinaryRead(X_data, X_data_path);
 	datasetBinaryRead(y_data, y_data_path);
 
-	std::cout << "Read Data Starting" << std::endl;
-	int shuffle_arr[y_data.size()];
-	//srand (time(NULL));
-	
 	srand(0);
-	// Does this shuffle features within a datapoint or datapoints within every entry.
-	if(shuffled){
-		std::vector<int> X_data_shuffled(X_data.size());
-		std::vector<int> y_data_shuffled(y_data.size());
-		for(int i = 0; i < y_data.size(); i++)
-			shuffle_arr[i] = i;
-		//shuffle
-		for(int i = y_data.size()-1; i != 0; i--){
-			int j = rand()%i;
-			int temp = shuffle_arr[i];
-			shuffle_arr[i] = shuffle_arr[j];
-			shuffle_arr[j] = temp;  
-		}
 
-		for(int i = 0; i < y_data.size(); i++){
-			y_data_shuffled[i] = y_data[shuffle_arr[i]];
-			for(int j = 0; j < N_FEAT; j++){
-				X_data_shuffled[i*N_FEAT + j] = X_data[shuffle_arr[i]*N_FEAT + j];
-			}
-		}
-		X_data = X_data_shuffled;
-		y_data = y_data_shuffled;
-	}	
+	std::cout << "Read Data Starting" << std::endl;
 	
 	assert(N_SAMPLE == y_data.size());
+
+	std::cout << X_data.size();
+
 	
 	std::vector<hvtype> floatVec(X_data.begin(), X_data.end());
 
@@ -189,7 +167,7 @@ int main(int argc, char** argv)
 	__hypervector__<Dhv, hvtype> row = __hetero_hdc_hypervector<Dhv, hvtype>();
 
 	// Each row is just a wrap shift of the seed.
-	for (int i = 0; i < N_FEAT; i++) {
+	for (int i = 0; i < N_FEAT; i++) {   
 		row = __hetero_hdc_wrap_shift<Dhv, hvtype>(rp_seed, i);
 		//print_hv<Dhv, hvtype>(row);
 		__hetero_hdc_set_matrix_row<N_FEAT, Dhv, hvtype>(rp_matrix_transpose, row, i);
@@ -212,7 +190,7 @@ int main(int argc, char** argv)
 	// Initialize cluster hvs.
 	std::cout << "Init cluster hvs:" << std::endl;
 	for (int k = 0; k < N_CENTER; k++) {
-		__hypervector__<N_FEAT, hvtype> datapoint_hv = __hetero_hdc_create_hypervector<N_FEAT, hvtype>(1, (void*) initialize_hv<hvtype>, &input_vectors[k * N_FEAT]);
+		__hypervector__<N_FEAT, hvtype> datapoint_hv = __hetero_hdc_create_hypervector<N_FEAT, hvtype>(1, (void*) initialize_hv<hvtype>, (input_vectors + (k * N_FEAT_PAD)));
 		//hvtype* datapoint_hv_buffer = new hvtype[N_FEAT];
 		//*((__hypervector__<N_FEAT, hvtype> *) datapoint_hv_buffer) = datapoint_hv;
 		// Encode the first N_CENTER hypervectors and set them to be the clusters.
@@ -257,7 +235,7 @@ int main(int argc, char** argv)
 		for (int j = 0; j < N_SAMPLE; j++) {
 
 			// We can move this allocation outside of the loop? as in allocation for scores. Moved outside of loop to above.
-			__hypervector__<N_FEAT, hvtype> datapoint_hv = __hetero_hdc_create_hypervector<N_FEAT, hvtype>(1, (void*) initialize_hv<hvtype>, &input_vectors[j * N_FEAT]);
+			__hypervector__<N_FEAT, hvtype> datapoint_hv = __hetero_hdc_create_hypervector<N_FEAT, hvtype>(1, (void*) initialize_hv<hvtype>, (input_vectors + (j * N_FEAT_PAD)));
 
 			//std::cout << "before root launch" << std::endl;
 			//std::cout << "datapoint hv";
@@ -305,8 +283,8 @@ int main(int argc, char** argv)
 			//print_hv<Dhv, hvtype>(cluster);
 
 			#ifdef HAMMING_DIST
-			//__hypervector__<Dhv, hvtype> cluster_norm = __hetero_hdc_sign<Dhv, hvtype>(cluster);
-			__hetero_hdc_set_matrix_row(clusters, cluster_temp, k);
+			__hypervector__<Dhv, hvtype> cluster_norm = __hetero_hdc_sign<Dhv, hvtype>(cluster_temp);
+			__hetero_hdc_set_matrix_row(clusters, cluster_norm, k);
 			#else
 			__hetero_hdc_set_matrix_row(clusters, cluster_temp, k);
 			#endif
