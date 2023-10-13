@@ -323,9 +323,31 @@ void flattened_root( /* Input buffers: 4*/
 
     void* root_section = __hetero_section_begin();
 
+    void* root_task = __hetero_task_begin(
+        /* Input Buffers: 3*/ 10, encoded_hv_ptr, encoded_hv_size,
+				 rp_matrix_ptr, rp_matrix_size,
+				 datapoint_vec_ptr, datapoint_vec_size,
+				 encoded_hv_ptr, encoded_hv_size,
+				 clusters_ptr, clusters_size,
+				 scores_ptr, scores_size,
+				 labels, labels_size, 
+				 temp_clusters_ptr, temp_clusters_size, 
+				 update_hv_ptr, update_hv_size,
+				 labels_index,
+        /* Parameters: 0*/
+        /* Output Buffers: 1*/4, encoded_hv_ptr, encoded_hv_size,
+				 scores_ptr, scores_size,
+				 labels, labels_size, 
+				 temp_clusters_ptr, temp_clusters_size, 
+        "root_task"
+    );
+
+    void* fpga_section = __hetero_section_begin();
 
     void* encoding_task = __hetero_task_begin(
-        /* Input Buffers: 3*/ 3, rp_matrix_ptr, rp_matrix_size, datapoint_vec_ptr,  datapoint_vec_size, encoded_hv_ptr, encoded_hv_size,
+        /* Input Buffers: 3*/ 3, rp_matrix_ptr, rp_matrix_size, 
+				 datapoint_vec_ptr, datapoint_vec_size, 
+				 encoded_hv_ptr, encoded_hv_size,
         /* Parameters: 0*/
         /* Output Buffers: 1*/ 1, encoded_hv_ptr, encoded_hv_size,
         "flattened_encoding_task"
@@ -343,7 +365,9 @@ void flattened_root( /* Input buffers: 4*/
 
 
     void* clustering_task_1 = __hetero_task_begin(
-        /* Input Buffers: 4*/ 3, encoded_hv_ptr, encoded_hv_size, clusters_ptr, clusters_size, scores_ptr, scores_size, 
+        /* Input Buffers: 4*/ 3, encoded_hv_ptr, encoded_hv_size, 
+				 clusters_ptr, clusters_size, 
+				 scores_ptr, scores_size, 
         /* Output Buffers: 1*/ 1,  scores_ptr, scores_size, "flattened_clustering_scoring_task"
     );
     {
@@ -367,9 +391,14 @@ void flattened_root( /* Input buffers: 4*/
    __hetero_task_end(clustering_task_1);
 
    void* clustering_task_2 = __hetero_task_begin(
-           /* Input Buffers: 5*/ 6, scores_ptr, scores_size, labels, labels_size, encoded_hv_ptr, encoded_hv_size, temp_clusters_ptr, temp_clusters_size, update_hv_ptr, update_hv_size,
-           /* paramters: 1*/      labels_index,
-           /* Output Buffers: 2*/ 2,  temp_clusters_ptr, temp_clusters_size, labels, labels_size, "flattened_find_score_and_update_task"
+           /* Input Buffers: 5*/ 6, scores_ptr, scores_size, 
+				    labels, labels_size, 
+				    encoded_hv_ptr, encoded_hv_size, 
+				    temp_clusters_ptr, temp_clusters_size, 
+				    update_hv_ptr, update_hv_size,
+           /* paramters: 1*/        labels_index,
+           /* Output Buffers: 2*/2, temp_clusters_ptr, temp_clusters_size, 
+				    labels, labels_size, "flattened_find_score_and_update_task"
            );
    {
 
@@ -412,5 +441,9 @@ void flattened_root( /* Input buffers: 4*/
    }
    __hetero_task_end(clustering_task_2);
 
-    __hetero_section_end(root_section);
+   __hetero_section_end(fpga_section);
+
+   __hetero_task_end(root_task); 
+
+   __hetero_section_end(root_section);
 }
