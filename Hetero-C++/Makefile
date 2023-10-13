@@ -104,7 +104,7 @@ host-fpga: build/output.fpga.ll
 
 # Clang Frontend to IR
 build/host.fpga.ll: streaming-src/host.cpp
-	$(HPVM_BIN)/clang++ -DHPVM -DDEVICE=hpvm::FPGA_TARGET $(CFLAGS) $(INCLUDES) -S -emit-llvm $^ -o $@ 
+	$(HPVM_BIN)/clang++ -DHPVM -DFPGA -DDEVICE=hpvm::FPGA_TARGET $(CFLAGS) $(INCLUDES) -S -emit-llvm $^ -o $@ 
 #$HPVM_BIN/clang++ -O1 -I$OPENCL_PATH/include/CL -L$OPENCL_LIB_PATH -I$HPVM_ROOT/projects/hetero-c++/test/include/ -lm -lrt -pthread -lOpenCL  $INCLUDE_FLAG -fenable-matrix    $PREFIX.cpp -S -emit-llvm -o $PREFIX.ll
 
 # GenHPVM for HDC only and mem2reg
@@ -118,7 +118,7 @@ build/hdc.lowered.fpga.ll: build/hpvm.genhdc.fpga.ll #hpvm.
 
 # HCC -> HPVM
 build/hpvmc.fpga.ll: build/hdc.lowered.fpga.ll
-	$(HPVM_BIN)/hcc $< -declsfile $(HPVM_DECLS_FILE) -sanitise-funcs --dot-dfg --skip-verify -S -o $@
+	$(HPVM_BIN)/hcc $< -declsfile $(HPVM_DECLS_FILE) -sanitise-funcs --dot-dfg  -S -o $@
 	$(HPVM_BIN)/opt $@ -dce -S -o $@
 
 build/hpvm.host.fpga.ll build/hpvm.kernels.fpga.ll build/hpvm.kernels.fpga.cl build/hpvm.kernels.fpga.aocx: build/hpvmc.fpga.ll

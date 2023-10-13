@@ -269,7 +269,13 @@ int main(int argc, char** argv)
 
 			// Root node is: Encoding -> Clustering for a single HV.
 			void *DFG = __hetero_launch(
+#ifdef FPGA
+				(void*) flattened_root<Dhv, N_CENTER, N_SAMPLE, N_FEAT>,
+
+#else
 				(void*) root_node<Dhv, N_CENTER, N_SAMPLE, N_FEAT>,
+#endif
+
 				/* Input Buffers: 4*/ 10,
 				&rp_matrix, rp_matrix_size, //false,
 				&datapoint_hv, input_vector_size, //true,
