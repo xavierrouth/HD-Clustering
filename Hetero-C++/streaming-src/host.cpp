@@ -11,6 +11,8 @@
 #include <cmath>
 
 
+#define HAMMING_DIST
+
 
 #define DUMP(vec, suffix) {\
   FILE *f = fopen("dump/" #vec suffix, "w");\
@@ -79,6 +81,8 @@ int main(int argc, char** argv)
 
 	srand(time(NULL));
 
+
+    assert(argc == 2 && "Expected parameter");
 	int EPOCH = std::atoi(argv[1]);
    
 	std::vector<int> X_data;
@@ -325,11 +329,13 @@ int main(int argc, char** argv)
 
 		std::cout << "Printing 23rd cluster " << std::endl;
 		for (int i = 0; i < N_CENTER; i++) {
+            /*
 			if (i == 23) {
 				__hypervector__<Dhv, hvtype> cluster_temp = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, hvtype>(clusters, N_CENTER, Dhv, i);
 				std::cout << i << " ";
 				print_hv<Dhv, hvtype>(cluster_temp);
 			}
+            */
 			
 		}
 	}
