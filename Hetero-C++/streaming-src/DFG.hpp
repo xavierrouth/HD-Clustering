@@ -133,7 +133,7 @@ void  rp_encoding_node_copy(/* Input Buffers: 2*/
 
 // In the streaming implementation, this runs for each encoded HV, so N_VEC * EPOCHs times.
 template<int D, int K, int N_VEC>
-void clustering_node(/* Input Buffers: 3*/
+void __attribute__ ((noinline)) clustering_node(/* Input Buffers: 3*/
         __hypervector__<D, hvtype>* encoded_hv_ptr, size_t encoded_hv_size, // __hypervector__<D, binary>
         __hypermatrix__<K, D, hvtype>* clusters_ptr, size_t clusters_size, // __hypermatrix__<K, D, binary>
         __hypermatrix__<K, D, hvtype>* temp_clusters_ptr, size_t temp_clusters_size, // ALSO AN OUTPUT
@@ -144,11 +144,10 @@ void clustering_node(/* Input Buffers: 3*/
         int* labels, size_t labels_size) { // Mapping of HVs to Clusters. int[N_VEC]
 
     void* section = __hetero_section_begin();
+
+
     { // Scoping hack in order to have 'scores' defined in each task.
 
-#if FGPA
-    __hetero_hint(DEVICE);
-#endif
 
     
     void* task1 = __hetero_task_begin(
@@ -157,9 +156,6 @@ void clustering_node(/* Input Buffers: 3*/
     );
 
     //std::cout << "clustering task 1" << std::endl;
-#if FGPA
-    __hetero_hint(DEVICE);
-#endif
 
     __hypervector__<D, hvtype> encoded_hv = *encoded_hv_ptr;
     __hypermatrix__<K, D, hvtype> clusters = *clusters_ptr;
@@ -204,9 +200,6 @@ void clustering_node(/* Input Buffers: 3*/
     );
 
     
-#if FGPA
-    __hetero_hint(DEVICE);
-#endif
     //std::cout << "clustering task 2" << std::endl;
     __hypervector__<K, hvtype> scores = *scores_ptr;
     int max_idx = 0;

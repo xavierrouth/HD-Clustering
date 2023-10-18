@@ -311,7 +311,7 @@ int main(int argc, char** argv)
 		for (int k = 0; k < N_CENTER; k++) {
 			// set temp_clusters -> clusters
 			__hypervector__<Dhv, hvtype> cluster_temp = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, hvtype>(clusters_temp, N_CENTER, Dhv, k);
-			std::cout << k << " ";
+			//std::cout << k << " ";
 			//print_hv<Dhv, hvtype>(cluster_temp);
 
 			// Normalize or sign?
@@ -329,13 +329,11 @@ int main(int argc, char** argv)
 
 		std::cout << "Printing 23rd cluster " << std::endl;
 		for (int i = 0; i < N_CENTER; i++) {
-            /*
 			if (i == 23) {
 				__hypervector__<Dhv, hvtype> cluster_temp = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, hvtype>(clusters, N_CENTER, Dhv, i);
 				std::cout << i << " ";
 				print_hv<Dhv, hvtype>(cluster_temp);
 			}
-            */
 			
 		}
 	}
