@@ -23,6 +23,13 @@ typedef int hvtype;
 //
 // RP encoding reduces N_features -> D 
 
+template <typename T>
+T zero_hv(size_t loop_index_var) {
+	//std::cout << ((float*)datapoint_vector)[loop_index_var] << "\n";
+	return 0;
+}
+
+
 template<int D, int N_FEATURES>
 void  rp_encoding_node(/* Input Buffers: 2*/
         __hypermatrix__<D, N_FEATURES, hvtype>* rp_matrix_ptr, size_t rp_matrix_size, // __hypermatrix__<N_FEATURES, D, binary>
@@ -49,20 +56,21 @@ void  rp_encoding_node(/* Input Buffers: 2*/
     __hetero_hint(DEVICE);
 #endif
     
-    __hypervector__<D, hvtype> encoded_hv = __hetero_hdc_matmul<D, N_FEATURES, hvtype>(*input_datapoint_ptr, *rp_matrix_ptr); 
+    __hypervector__<D, hvtype> encoded_hv = __hetero_hdc_create_hypervector<D, hvtype>(0, (void*) zero_hv<hvtype>);
+    *output_hv_ptr = encoded_hv;
+
+    encoded_hv = __hetero_hdc_matmul<D, N_FEATURES, hvtype>(*input_datapoint_ptr, *rp_matrix_ptr); 
     // Uses the output_hv_ptr for the buffer. So that we can lower to 
     // additional tasks. We should do an optimization in the bufferization
     // analysis to re-use the same buffer (especially those coming from the
     // formal parameters) to enable more of these tasks to become parallel loops.
-
-    
     *output_hv_ptr = encoded_hv;
+    
+    #ifdef HAMMING_DIST
+    __hypervector__<D, int> bipolar_encoded_hv = __hetero_hdc_sign<D, int>(encoded_hv);
+    *output_hv_ptr = bipolar_encoded_hv;
+    #endif
 
-    // Not quantized:
-    //__hypervector__<D, hvtype> bipolar_encoded_hv = __hetero_hdc_sign<D, hvtype>(encoded_hv);
-    //*output_hv_ptr = bipolar_encoded_hv;
-
-    //std::cout << "encoding node end" << std::endl;
 
     __hetero_task_end(task); 
 
@@ -92,17 +100,22 @@ void  rp_encoding_node_copy(/* Input Buffers: 2*/
 
     //std::cout << "encoding node copy" << std::endl;
 
-
+    __hypervector__<D, hvtype> encoded_hv = __hetero_hdc_create_hypervector<D, hvtype>(0, (void*) zero_hv<hvtype>);
+    *output_hv_ptr = encoded_hv;
     
-    __hypervector__<D, hvtype> encoded_hv = __hetero_hdc_matmul<D, N_FEATURES, hvtype>(*input_datapoint_ptr, *rp_matrix_ptr); 
+    encoded_hv = __hetero_hdc_matmul<D, N_FEATURES, hvtype>(*input_datapoint_ptr, *rp_matrix_ptr); 
+    *output_hv_ptr = encoded_hv;
     // Uses the output_hv_ptr for the buffer. So that we can lower to 
     // additional tasks. We should do an optimization in the bufferization
     // analysis to re-use the same buffer (especially those coming from the
     // formal parameters) to enable more of these tasks to become parallel loops.
-    *output_hv_ptr = encoded_hv;
+    
 
-    //__hypervector__<D, int> bipolar_encoded_hv = __hetero_hdc_sign<D, int>(encoded_hv);
-    //*output_hv_ptr = bipolar_encoded_hv;
+    #ifdef HAMMING_DIST
+    __hypervector__<D, int> bipolar_encoded_hv = __hetero_hdc_sign<D, int>(encoded_hv);
+    *output_hv_ptr = bipolar_encoded_hv;
+    #endif
+
 
     __hetero_task_end(task); 
 
