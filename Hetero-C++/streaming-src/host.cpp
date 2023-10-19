@@ -14,6 +14,13 @@
 #define HAMMING_DIST
 
 
+#ifdef HAMMING_DIST
+#define SCORES_TYPE hvtype
+#else
+#define SCORES_TYPE float
+#endif
+
+
 #define DUMP(vec, suffix) {\
   FILE *f = fopen("dump/" #vec suffix, "w");\
   if (f) fwrite(vec.data(), sizeof(vec[0]), vec.size(), f);\
@@ -151,27 +158,24 @@ int main(int argc, char** argv)
 	// Used to store a temporary cluster for initializion
 	__hypervector__<Dhv, hvtype> cluster = __hetero_hdc_hypervector<Dhv, hvtype>();
 	hvtype* cluster_buffer = new hvtype[Dhv];
-	//*(__hypervector__<Dhv, int>* cluster_buffer) = cluster;
-	//__hypervector__<Dhv, int>* cluster_ptr = &cluster;
 	size_t cluster_size = Dhv * sizeof(hvtype);
 
 	// Read from during clustering, updated from clusters_temp.
 	__hypermatrix__<N_CENTER, Dhv, hvtype> clusters = __hetero_hdc_hypermatrix<N_CENTER, Dhv, hvtype>();
 	hvtype* clusters_buffer = new hvtype[N_CENTER * Dhv];
-	//*((__hypermatrix__<N_CENTER, Dhv, int>*) clusters_buffer) = clusters;
-	//__hypermatrix__<N_CENTER, Dhv, int>* clusters__ptr = &clusters;
 	size_t clusters_size = N_CENTER * Dhv * sizeof(hvtype);
 
 	// Gets written into during clustering, then is used to update 'clusters' at the end.
 	__hypermatrix__<N_CENTER, Dhv, hvtype> clusters_temp = __hetero_hdc_hypermatrix<N_CENTER, Dhv, hvtype>();
 	hvtype* clusters_temp_buffer = new hvtype[N_CENTER * Dhv];
-	//*((__hypermatrix__<N_CENTER, Dhv, int>*) clusters_temp_buffer) = clusters_temp;
-	//__hypermatrix__<N_CENTER, Dhv, int>* clusters_temp_ptr = &clusters_temp;
 
 	// Temporarily store scores, allows us to split score calcuation into a separte task.
-	__hypervector__<Dhv, hvtype> scores = __hetero_hdc_hypervector<Dhv, hvtype>();
-	hvtype* scores_buffer = new hvtype[N_CENTER];
-	size_t scores_size = N_CENTER * sizeof(hvtype);
+
+
+	__hypervector__<Dhv, SCORES_TYPE> scores = __hetero_hdc_hypervector<Dhv, SCORES_TYPE>();
+	SCORES_TYPE* scores_buffer = new SCORES_TYPE[N_CENTER];
+	size_t scores_size = N_CENTER * sizeof(SCORES_TYPE);
+
 
 	// Encoding matrix: First we write into rp_matrix_transpose, then transpose it to get rp_matrix,
 	// which is the correct dimensions for encoding input features.
@@ -188,7 +192,6 @@ int main(int argc, char** argv)
 	//We need a seed ID. To generate in a random yet determenistic (for later debug purposes) fashion, we use bits of log2 as some random stuff.
 
 	std::cout << "Seed hv:\n";
-	//print_hv<Dhv, hvtype>(rp_seed);
 	std::cout << "After seed generation\n";
 
 	// Dhv needs to be greater than N_FEAT for the orthognality to hold.
@@ -199,31 +202,16 @@ int main(int argc, char** argv)
 	// Each row is just a wrap shift of the seed.
 	for (int i = 0; i < N_FEAT; i++) {
 		row = __hetero_hdc_wrap_shift<Dhv, hvtype>(rp_seed, i);
-		//print_hv<Dhv, hvtype>(row);
 		__hetero_hdc_set_matrix_row<N_FEAT, Dhv, hvtype>(rp_matrix_transpose, row, i);
 	} 
 
 	// Now transpose in order to be able to multiply with input hv in DFG.
 	rp_matrix = __hetero_hdc_matrix_transpose<N_FEAT, Dhv, hvtype>(rp_matrix_transpose, N_FEAT, Dhv);
 
-	// Make sure transpose worked:
-	//std::cout << "Transpose of encoding matrix:" << std::endl;
-	//__hypervector__<N_FEAT, int> tmp = __hetero_hdc_hypervector<N_FEAT, int>();
-	//for (int i = 0 ; i < Dhv; i++) {
-	//	tmp = __hetero_hdc_get_matrix_row<Dhv, N_FEAT, int>(rp_matrix, Dhv, N_FEAT, i);
-		//print_hv<N_FEAT, int>(tmp);
-	//}
-	// Print out at the end here.
-	//print_hv<N_FEAT, int>(row);
-
-	//*((__hypermatrix__<Dhv, N_FEAT, hvtype>*) rp_matrix_buffer) = rp_matrix;
 	// Initialize cluster hvs.
 	std::cout << "Init cluster hvs:" << std::endl;
 	for (int k = 0; k < N_CENTER; k++) {
 		__hypervector__<N_FEAT, hvtype> datapoint_hv = __hetero_hdc_create_hypervector<N_FEAT, hvtype>(1, (void*) initialize_hv<hvtype>, &input_vectors[k * N_FEAT]);
-		//hvtype* datapoint_hv_buffer = new hvtype[N_FEAT];
-		//*((__hypervector__<N_FEAT, hvtype> *) datapoint_hv_buffer) = datapoint_hv;
-		// Encode the first N_CENTER hypervectors and set them to be the clusters.
 
 		void* initialize_DFG = __hetero_launch(
 			(void*) rp_encoding_node_copy<Dhv, N_FEAT>,
@@ -243,10 +231,8 @@ int main(int argc, char** argv)
 		// rp_encoding_node encodes a single cluster, which we then have to assign to our big group of clusters in cluster[s].
 		// Note cluster vs clusters
 		std::cout << k << " ";
-		//print_hv<Dhv, hvtype>(cluster);
 		__hetero_hdc_set_matrix_row<N_CENTER, Dhv, hvtype>(clusters, cluster, k);
 		__hypervector__<Dhv, hvtype> cluster_temp = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, hvtype>(clusters, N_CENTER, Dhv, k);
-		// print_hv<Dhv, hvtype>(cluster_temp); // VERIFY that these are the same.
 	}
 
 	std::cout << "Done init cluster hvs:" << std::endl;
@@ -267,9 +253,6 @@ int main(int argc, char** argv)
 			// We can move this allocation outside of the loop? as in allocation for scores. Moved outside of loop to above.
 			__hypervector__<N_FEAT, hvtype> datapoint_hv = __hetero_hdc_create_hypervector<N_FEAT, hvtype>(1, (void*) initialize_hv<hvtype>, &input_vectors[j * N_FEAT]);
 
-			//std::cout << "before root launch" << std::endl;
-			//std::cout << "datapoint hv";
-			//print_hv<N_FEAT, hvtype>(datapoint_hv);
 
 			// Root node is: Encoding -> Clustering for a single HV.
 			void *DFG = __hetero_launch(
@@ -311,13 +294,6 @@ int main(int argc, char** argv)
 		for (int k = 0; k < N_CENTER; k++) {
 			// set temp_clusters -> clusters
 			__hypervector__<Dhv, hvtype> cluster_temp = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, hvtype>(clusters_temp, N_CENTER, Dhv, k);
-			//std::cout << k << " ";
-			//print_hv<Dhv, hvtype>(cluster_temp);
-
-			// Normalize or sign?
-			// Don't do anything!!
-		
-			//print_hv<Dhv, hvtype>(cluster);
 
 			#ifdef HAMMING_DIST
 			__hypervector__<Dhv, hvtype> cluster_norm = __hetero_hdc_sign<Dhv, hvtype>(cluster_temp);
@@ -343,27 +319,6 @@ int main(int argc, char** argv)
 	
 	mSec = std::chrono::duration_cast<std::chrono::milliseconds>(t_elapsed).count();
 	
-	/*
-	long double distance = 0;
-	int count = 0;
-
-	for(int i = 0; i < N_SAMPLE; i++){
-		//cout << labels_gmem[i] << endl;
-		long double sum1 = 0;
-		if(labels_gmem[i] < N_CENTER){
-			count++;
-			for(int j = 0; j < N_FEAT; j++){
-				long double temp;
-				if(shuffled)
-					temp = X_data_shuffled[labels_gmem[i]*N_FEAT + j] - X_data_shuffled[i*N_FEAT + j];
-				else
-					temp = X_data[labels_gmem[i]*N_FEAT + j] - X_data[i*N_FEAT + j];
-				sum1 += temp*temp;
-			}
-		}
-		distance += sqrt(sum1);
-	}
-	*/
 
 	std::cout << "\nReading data took " << mSec1 << " mSec" << std::endl;    
 	std::cout << "Execution (" << EPOCH << " epochs)  took " << mSec << " mSec" << std::endl;
@@ -372,11 +327,6 @@ int main(int argc, char** argv)
 	for(int i = 0; i < N_SAMPLE; i++){
 		myfile << y_data[i] << " " << labels[i] << std::endl;
 	}
-	//calculate score
-	//string command = "python -W ignore mutual_info.py";
-	//system(command.c_str());
- 	//cout << "\nNormalized distance:\t" << int(distance / count / Dhv) << endl;
-    //cout << "\nAccuracy = " << float(correct)/N_SAMPLE << endl;
 	__hpvm__cleanup();
 	return 0;
 }
