@@ -12,6 +12,7 @@
 
 
 #define HAMMING_DIST
+//#define OFFLOAD_RP_GEN
 
 
 #ifdef HAMMING_DIST
@@ -181,7 +182,6 @@ int main(int argc, char** argv)
 	// which is the correct dimensions for encoding input features.
 	__hypermatrix__<N_FEAT, Dhv, hvtype> rp_matrix_transpose = __hetero_hdc_hypermatrix<N_FEAT, Dhv, hvtype>();
 	__hypermatrix__<Dhv, N_FEAT, hvtype> rp_matrix = __hetero_hdc_hypermatrix<Dhv, N_FEAT, hvtype>();
-	hvtype* rp_matrix_buffer = new hvtype[N_FEAT * Dhv];
 
 	//__hypermatrix__<Dhv, N_FEAT, int>* rp_matrix_ptr = &rp_matrix;
 	size_t rp_matrix_size = N_FEAT * Dhv * sizeof(hvtype);
@@ -196,8 +196,38 @@ int main(int argc, char** argv)
 
 	// Dhv needs to be greater than N_FEAT for the orthognality to hold.
 
+#ifdef OFFLOAD_RP_GEN
+
+	hvtype* rp_matrix_buffer = new hvtype[N_FEAT * Dhv];
+	hvtype* shifted_buffer = new hvtype[N_FEAT * Dhv];
+	hvtype* row_buffer = new hvtype[Dhv];
+
+    void* GenRPMatDAG = __hetero_launch(
+        (void*) gen_rp_matrix<Dhv,  N_FEAT>,
+        4,
+        /* Input Buffers: 3*/ 
+        &rp_seed, sizeof(hvtype) * Dhv,
+        row_buffer, sizeof(hvtype) * Dhv,
+        shifted_buffer, sizeof(hvtype) * (N_FEAT * Dhv),
+        rp_matrix_buffer, sizeof(hvtype) * (N_FEAT * Dhv),
+        /* Output Buffers: 1*/ 
+        1,
+        rp_matrix_buffer, sizeof(hvtype) * (N_FEAT * Dhv)
+    );
+
+    __hetero_wait(GenRPMatDAG);
+
+    free(shifted_buffer);
+    free(row_buffer);
+
+
+
+    //rp_matrix =   *  (__hypermatrix__<Dhv, N_FEAT, hvtype>*) rp_matrix_buffer;
+
+#else
 	// Generate the random projection matrix. Dhv rows, N_FEAT cols, so Dhv x N_FEAT.
 	__hypervector__<Dhv, hvtype> row = __hetero_hdc_hypervector<Dhv, hvtype>();
+
 
 	// Each row is just a wrap shift of the seed.
 	for (int i = 0; i < N_FEAT; i++) {
@@ -207,6 +237,11 @@ int main(int argc, char** argv)
 
 	// Now transpose in order to be able to multiply with input hv in DFG.
 	rp_matrix = __hetero_hdc_matrix_transpose<N_FEAT, Dhv, hvtype>(rp_matrix_transpose, N_FEAT, Dhv);
+    auto rp_matrix_buffer = &rp_matrix;
+#endif
+
+
+
 
 	// Initialize cluster hvs.
 	std::cout << "Init cluster hvs:" << std::endl;
@@ -217,7 +252,8 @@ int main(int argc, char** argv)
 			(void*) rp_encoding_node_copy<Dhv, N_FEAT>,
 			2 + 1,
 			/* Input Buffers: 2*/ 
-			&rp_matrix, rp_matrix_size, //false,
+			//&rp_matrix, rp_matrix_size, //false,
+            rp_matrix_buffer, rp_matrix_size,
 			&datapoint_hv, input_vector_size,
 			/* Output Buffers: 1*/ 
 			&cluster, cluster_size,  //false,
@@ -264,7 +300,7 @@ int main(int argc, char** argv)
 #endif
 
 				/* Input Buffers: 4*/ 10,
-				&rp_matrix, rp_matrix_size, //false,
+				rp_matrix_buffer, rp_matrix_size, //false,
 				&datapoint_hv, input_vector_size, //true,
 				&clusters, clusters_size, //false,
 				&clusters_temp, clusters_size, //false,

@@ -224,6 +224,89 @@ void __attribute__ ((noinline)) clustering_node(/* Input Buffers: 3*/
 }
 
 
+
+
+// RP Matrix Node Generation. Performs element wise rotation on ID matrix rows and stores into destination buffer.
+template <int D,  int N_FEATURES>
+void gen_rp_matrix(/* Input Buffers*/
+        __hypervector__<D, hvtype>* rp_seed_vector, size_t  rp_seed_vector_size,
+        __hypervector__<D, hvtype>* row_buffer, size_t  row_buffer_size,
+        __hypermatrix__<N_FEATURES, D, hvtype>* shifted_matrix, size_t  shifted_matrix_size,
+        __hypermatrix__<D, N_FEATURES, hvtype>* transposed_matrix, size_t  transposed_matrix_size
+        ){
+
+
+    void* root_section = __hetero_section_begin();
+
+
+    void* root_task = __hetero_task_begin(
+            /* Num Inputs */ 4,
+         rp_seed_vector,   rp_seed_vector_size,
+         shifted_matrix,   shifted_matrix_size,
+         row_buffer, row_buffer_size,
+         transposed_matrix,   transposed_matrix_size,
+         /* Num Outputs*/ 1,
+         transposed_matrix,   transposed_matrix_size,
+        "gen_root_task"
+    );
+
+    void* wrapper_section = __hetero_section_begin();
+
+
+    {
+    void* gen_shifted_task = __hetero_task_begin(
+         /* Num Inputs */ 3,
+         rp_seed_vector,   rp_seed_vector_size,
+         shifted_matrix,   shifted_matrix_size,
+         row_buffer, row_buffer_size,
+         /* Num Outputs */ 1,
+         shifted_matrix,   shifted_matrix_size,
+         "gen_shifted_matrix_task");
+
+
+    //std::cout << "Gen Shifted Task Begin" <<std::endl;
+	// Each row is just a wrap shift of the seed.
+
+	for (int i = 0; i < N_FEATURES; i++) {
+		__hypervector__<D, hvtype>  row = __hetero_hdc_wrap_shift<D, hvtype>(*rp_seed_vector, i);
+        *row_buffer = row;
+        __hetero_hdc_set_matrix_row<N_FEATURES, D, hvtype>(*shifted_matrix, row, i);
+
+	} 
+
+    //std::cout << "Gen Shifted Task End" <<std::endl;
+
+
+   __hetero_task_end(gen_shifted_task); 
+   }
+
+   {
+    void* transpose_task = __hetero_task_begin(
+         /* Num Inputs */ 2,
+         shifted_matrix,   shifted_matrix_size,
+         transposed_matrix,   transposed_matrix_size,
+         /* Num Outputs */ 1,
+         transposed_matrix,   transposed_matrix_size,
+         "gen_tranpose_task");
+
+    //std::cout << "Transpose Begin" <<std::endl;
+	 *transposed_matrix = __hetero_hdc_matrix_transpose<N_FEATURES, D, hvtype>(*shifted_matrix, N_FEATURES, D);
+
+    //std::cout << "Transpose Task End" <<std::endl;
+
+   __hetero_task_end(transpose_task); 
+   }
+
+
+   __hetero_section_end(wrapper_section);
+
+   __hetero_task_end(root_task); 
+
+   __hetero_section_end(root_section);
+}
+
+
+
 // Dimensionality, Clusters, data point vectors, features per.
 template <int D, int K, int N_VEC, int N_FEATURES>
 void root_node( /* Input buffers: 4*/ 
