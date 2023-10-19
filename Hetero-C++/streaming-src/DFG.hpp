@@ -163,7 +163,7 @@ void __attribute__ ((noinline)) clustering_node(/* Input Buffers: 3*/
     __hypervector__<D, hvtype> encoded_hv = *encoded_hv_ptr;
     __hypermatrix__<K, D, hvtype> clusters = *clusters_ptr;
 
-    __hypervector__<K, hvtype> scores = *scores_ptr; // Precision of these scores might need to be increased.
+    __hypervector__<K, SCORES_TYPE> scores = *scores_ptr; // Precision of these scores might need to be increased.
 
     #ifdef HAMMING_DIST
     *scores_ptr =  __hetero_hdc_hamming_distance<K, D, hvtype>(encoded_hv, clusters);
@@ -227,17 +227,17 @@ void __attribute__ ((noinline)) clustering_node(/* Input Buffers: 3*/
 // Dimensionality, Clusters, data point vectors, features per.
 template <int D, int K, int N_VEC, int N_FEATURES>
 void root_node( /* Input buffers: 4*/ 
-                __hypermatrix__<D, N_FEATURES, hvtype>* rp_matrix_ptr, size_t rp_matrix_size, // __hypermatrix__<N_FEATURES, D, binary>
+                __hypermatrix__<D, N_FEATURES, hvtype>* rp_matrix_ptr, size_t rp_matrix_size, 
                 __hypervector__<N_FEATURES, hvtype>* datapoint_vec_ptr, size_t datapoint_vec_size, // Features
-                __hypermatrix__<K, D, hvtype>* clusters_ptr, size_t clusters_size, // __hypermatrix__<K, D, binary>
+                __hypermatrix__<K, D, hvtype>* clusters_ptr, size_t clusters_size, 
                 __hypermatrix__<K, D, hvtype>* temp_clusters_ptr, size_t temp_clusters_size, // ALSO AN OUTPUT
                 /* Local Vars: 2*/
-                __hypervector__<D, hvtype>* encoded_hv_ptr, size_t encoded_hv_size, // // __hypervector__<D, binary>
+                __hypervector__<D, hvtype>* encoded_hv_ptr, size_t encoded_hv_size, 
                 
 
                 __hypervector__<K, SCORES_TYPE>* scores_ptr, size_t scores_size,
 
-                __hypervector__<D, hvtype>* update_hv_ptr, size_t update_hv_size,  // Used in second stage of clustering node for extracting and accumulating
+                __hypervector__<D, hvtype>* update_hv_ptr, size_t update_hv_size,  
                 /* Parameters: 2*/
                 int labels_index, int convergence_threshold, // <- not used.
                 /* Output Buffers: 2*/
@@ -335,8 +335,19 @@ void flattened_root( /* Input buffers: 4*/
 
         __hetero_hint(DEVICE);
 
-        __hypervector__<D, hvtype> encoded_hv = __hetero_hdc_matmul<D, N_FEATURES, hvtype>(*datapoint_vec_ptr, *rp_matrix_ptr); 
+
+        // Initialize matrix state with 0
+        __hypervector__<D, hvtype> encoded_hv = __hetero_hdc_create_hypervector<D, hvtype>(0, (void*) zero_hv<hvtype>);
         *encoded_hv_ptr = encoded_hv;
+
+        encoded_hv = __hetero_hdc_matmul<D, N_FEATURES, hvtype>(*datapoint_vec_ptr, *rp_matrix_ptr); 
+        *encoded_hv_ptr = encoded_hv;
+
+
+    #ifdef HAMMING_DIST
+    __hypervector__<D, int> bipolar_encoded_hv = __hetero_hdc_sign<D, int>(encoded_hv);
+    *encoded_hv_ptr = bipolar_encoded_hv;
+    #endif
 
 
     }
@@ -357,7 +368,7 @@ void flattened_root( /* Input buffers: 4*/
         __hypervector__<D, hvtype> encoded_hv = *encoded_hv_ptr;
         __hypermatrix__<K, D, hvtype> clusters = *clusters_ptr;
 
-        __hypervector__<K, hvtype> scores = *scores_ptr; // Precision of these scores might need to be increased.
+        __hypervector__<K, SCORES_TYPE> scores = *scores_ptr; // Precision of these scores might need to be increased.
 
 #ifdef HAMMING_DIST
         *scores_ptr =  __hetero_hdc_hamming_distance<K, D, hvtype>(encoded_hv, clusters);
