@@ -4,14 +4,14 @@
 #include <heterocc.h>
 #include <iostream>
 
-#define HAMMING_DIST
+//#define HAMMING_DIST
 
 #undef D
 #undef N_FEATURES
 #undef K
 
 typedef int binary;
-typedef int hvtype;
+typedef float hvtype;
 
 #ifndef DEVICE
 #define DEVICE 1
@@ -172,27 +172,6 @@ void clustering_node(/* Input Buffers: 3*/
     *scores_ptr = __hetero_hdc_cossim<K, D, hvtype>(encoded_hv, clusters);
     #endif
 
-    //std::cout << "after hamming" << std::endl;
-
-    //__hypervector__<D, int> cluster_center = __hetero_hdc_hypervector<D, int>();
-
-    // Previous:
-
-    /*
-    for (int k = 0 ; k < K; k++) {
-        cluster_center = __hetero_hdc_get_matrix_row<K, D, int>(clusters, K, D, k);
-        // FPGA implementation does optimizations where it stores the magnitude of the center hvs, so it doesn't have to re-calculate them each time we do cossim
-        // If we really wanted spped, we should just use hamming distance. 
-        //scores[k] 
-        int score = D - __hetero_hdc_hamming_distance<D, int>(encoded_hv, cluster_center); 
-        //int score = __hetero_hdc_cossim<D, int>(encoded_hv, cluster_center); 
-        
-        if (score > max_score) {
-            max_score = score;
-            max_idx = k;
-        }
-    } */
-
    __hetero_task_end(task1);
     }
     
@@ -227,7 +206,6 @@ void clustering_node(/* Input Buffers: 3*/
         #endif
         //std::cout << score << " ";
         if (score > max_score) {
-            
             max_score = score;
             max_idx = k;
         }
@@ -237,10 +215,6 @@ void clustering_node(/* Input Buffers: 3*/
     //std::cout << encoded_hv_idx << "|" << max_idx << " ";
     labels[encoded_hv_idx] = max_idx;
 
-    //std::cout << "after write to labels" << std::endl;
-
-    // Accumulate to temp clusters
-    //auto temp = __hetero_hdc_hypervector<D, int>();
 
     // Unclear if this actually works as intended.
     *update_hv_ptr =  __hetero_hdc_get_matrix_row<K, D, hvtype>(*temp_clusters_ptr, K, D, max_idx);

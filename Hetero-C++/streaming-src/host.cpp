@@ -54,8 +54,9 @@ T initialize_rp_seed(size_t loop_index_var) {
 	//std::cout << i << " " << j << "\n";
 	long double temp = log2(i+2.5) * pow(2, 31);
 	long long int temp2 = (long long int)(temp);
-	//temp2 = temp2 % 2147483648;
 	temp2 = temp2 % 2147483648;
+	//temp2 = temp2 % int(pow(2, 31));
+	//2147483648;
 
 	int ele = temp2 & (0x01 << j); //temp2 && (0x01 << j);
 
@@ -216,7 +217,7 @@ int main(int argc, char** argv)
 	// Initialize cluster hvs.
 	std::cout << "Init cluster hvs:" << std::endl;
 	for (int k = 0; k < N_CENTER; k++) {
-		__hypervector__<N_FEAT, hvtype> datapoint_hv = __hetero_hdc_create_hypervector<N_FEAT, hvtype>(1, (void*) initialize_hv<hvtype>, &input_vectors[k * N_FEAT]);
+		__hypervector__<N_FEAT, hvtype> datapoint_hv = __hetero_hdc_create_hypervector<N_FEAT, hvtype>(1, (void*) initialize_hv<hvtype>, input_vectors + k * N_FEAT_PAD);
 		//hvtype* datapoint_hv_buffer = new hvtype[N_FEAT];
 		//*((__hypervector__<N_FEAT, hvtype> *) datapoint_hv_buffer) = datapoint_hv;
 		// Encode the first N_CENTER hypervectors and set them to be the clusters.
@@ -260,12 +261,7 @@ int main(int argc, char** argv)
 		std::cout << "Epoch: #" << i << std::endl;
 		for (int j = 0; j < N_SAMPLE; j++) {
 
-			// We can move this allocation outside of the loop? as in allocation for scores. Moved outside of loop to above.
-			__hypervector__<N_FEAT, hvtype> datapoint_hv = __hetero_hdc_create_hypervector<N_FEAT, hvtype>(1, (void*) initialize_hv<hvtype>, &input_vectors[j * N_FEAT]);
-
-			//std::cout << "before root launch" << std::endl;
-			//std::cout << "datapoint hv";
-			//print_hv<N_FEAT, hvtype>(datapoint_hv);
+			__hypervector__<N_FEAT, hvtype> datapoint_hv = __hetero_hdc_create_hypervector<N_FEAT, hvtype>(1, (void*) initialize_hv<hvtype>, input_vectors + j * N_FEAT_PAD);
 
 			// Root node is: Encoding -> Clustering for a single HV.
 			void *DFG = __hetero_launch(
@@ -298,7 +294,6 @@ int main(int argc, char** argv)
 		
 		}
 		// then update clusters and copy clusters_tmp to clusters, 
-		// Calcualte eucl maginutde of each cluster HV before copying it over?.
 
 		// TODO: Move to DAG
 		std::cout << "after root node\n";
@@ -369,7 +364,7 @@ int main(int argc, char** argv)
 		myfile << y_data[i] << " " << labels[i] << std::endl;
 	}
 	//calculate score
-	//string command = "python -W ignore mutual_info.py";
+	//std::string command = "python -W ignore mutual_info.py out.txt";
 	//system(command.c_str());
  	//cout << "\nNormalized distance:\t" << int(distance / count / Dhv) << endl;
     //cout << "\nAccuracy = " << float(correct)/N_SAMPLE << endl;

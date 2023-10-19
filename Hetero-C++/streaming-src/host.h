@@ -11,28 +11,9 @@
 #include <iostream>
 #include <fstream>
 
-/**
-template <typename T>
-struct aligned_allocator
-{
-  using value_type = T;
-  T* allocate(std::size_t num)
-  {
-    void* ptr = nullptr;
-    if (posix_memalign(&ptr,4096,num*sizeof(T)))
-      throw std::bad_alloc();
-    return reinterpret_cast<T*>(ptr);
-  }
-  void deallocate(T* p, std::size_t num)
-  {
-    free(p);
-  }
-};
-*/
-
 #define N_CENTER		26	//number of centers. (e.g., isolet: 26,)
 #define N_FEAT			617	//feature per input (e.g., isolet: 617)
-#define Dhv				  128  //hypervectors length
+#define Dhv				  256  //hypervectors length
 #define N_SAMPLE 		6238
 
 #define COL				8 //number of columns of a matrix-vector multiplication window
