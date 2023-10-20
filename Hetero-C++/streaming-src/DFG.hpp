@@ -45,9 +45,6 @@ void  rp_encoding_node(/* Input Buffers: 2*/
     
     void* section = __hetero_section_begin();
 
-#if FGPA
-    __hetero_hint(DEVICE);
-#endif
 
     void* task = __hetero_task_begin(
         /* Input Buffers: 2*/ 3, rp_matrix_ptr, rp_matrix_size, input_datapoint_ptr, input_datapoint_size, output_hv_ptr, output_hv_size,
@@ -57,9 +54,6 @@ void  rp_encoding_node(/* Input Buffers: 2*/
     );
 
     
-#if FGPA
-    __hetero_hint(DEVICE);
-#endif
     
     __hypervector__<D, hvtype> encoded_hv = __hetero_hdc_create_hypervector<D, hvtype>(0, (void*) zero_hv<hvtype>);
     *output_hv_ptr = encoded_hv;
@@ -82,6 +76,7 @@ void  rp_encoding_node(/* Input Buffers: 2*/
     __hetero_section_end(section);
     return;
 }
+
 
 
 // RP encoding reduces N_features -> D 
@@ -125,6 +120,32 @@ void  rp_encoding_node_copy(/* Input Buffers: 2*/
 
     __hetero_section_end(section);
     return;
+}
+
+
+// RP encoding reduces N_features -> D 
+template<int D, int N_FEATURES>
+void  InitialEncodingDAG(/* Input Buffers: 2*/
+        __hypermatrix__<D, N_FEATURES, hvtype>* rp_matrix_ptr, size_t rp_matrix_size, 
+        __hypervector__<N_FEATURES, hvtype>* input_datapoint_ptr, size_t input_datapoint_size, 
+        /* Output Buffers: 1*/
+        __hypervector__<D, hvtype>* output_hv_ptr, size_t output_hv_size) {
+
+    
+    void* section = __hetero_section_begin();
+
+    void* task = __hetero_task_begin(
+        /* Input Buffers: 2*/ 3, rp_matrix_ptr, rp_matrix_size, input_datapoint_ptr, input_datapoint_size, output_hv_ptr, output_hv_size,
+        /* Parameters: 0*/
+        /* Output Buffers: 1*/ 1, output_hv_ptr, output_hv_size,
+        "initial_encoding_wrapper"
+    );
+
+    // Specifies that the following node is performing an HDC Encoding step
+    __hetero_hdc_encoding(6, (void*)  rp_encoding_node_copy<D, N_FEATURES>, rp_matrix_ptr, rp_matrix_size, input_datapoint_ptr, input_datapoint_size, output_hv_ptr, output_hv_size);
+
+    __hetero_task_end(task); 
+    __hetero_section_end(section);
 }
 
 // clustering_node is the hetero-c++ version of searchUnit from the original FPGA code.

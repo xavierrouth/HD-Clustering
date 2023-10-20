@@ -29,7 +29,9 @@
 }
 
 template <int N, typename elemTy>
-void print_hv(__hypervector__<N, elemTy> hv) {
+void inline print_hv(__hypervector__<N, elemTy> hv) {
+    // TEMPORARILY DISABLED AS THIS CALL BREAKS Code
+    return;
     std::cout << "[";
     for (int i = 0; i < N-1; i++) {
         std::cout << hv[0][i] << ", ";
@@ -249,10 +251,10 @@ int main(int argc, char** argv)
 		__hypervector__<N_FEAT, hvtype> datapoint_hv = __hetero_hdc_create_hypervector<N_FEAT, hvtype>(1, (void*) initialize_hv<hvtype>, &input_vectors[k * N_FEAT]);
 
 		void* initialize_DFG = __hetero_launch(
+			//(void*) InitialEncodingDAG<Dhv, N_FEAT>,
 			(void*) rp_encoding_node_copy<Dhv, N_FEAT>,
 			2 + 1,
 			/* Input Buffers: 2*/ 
-			//&rp_matrix, rp_matrix_size, //false,
             rp_matrix_buffer, rp_matrix_size,
 			&datapoint_hv, input_vector_size,
 			/* Output Buffers: 1*/ 
@@ -266,12 +268,13 @@ int main(int argc, char** argv)
 
 		// rp_encoding_node encodes a single cluster, which we then have to assign to our big group of clusters in cluster[s].
 		// Note cluster vs clusters
-		std::cout << k << " ";
+		std::cout <<" Cluter "<< k << "\n";
+        print_hv<Dhv, hvtype>(cluster);
 		__hetero_hdc_set_matrix_row<N_CENTER, Dhv, hvtype>(clusters, cluster, k);
 		__hypervector__<Dhv, hvtype> cluster_temp = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, hvtype>(clusters, N_CENTER, Dhv, k);
 	}
 
-	std::cout << "Done init cluster hvs:" << std::endl;
+	std::cout << "\nDone init cluster hvs:" << std::endl;
 
 	#if DEBUG
 	for (int i = 0; i < N_CENTER; i++) {
