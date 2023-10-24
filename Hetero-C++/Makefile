@@ -1,4 +1,4 @@
-#HPVM_INSTALL_DIR := /home/arnoor2/hpvm_hdc/hpvm/hpvm/
+HPVM_INSTALL_DIR ?= /home/arnoor2/hpvm_hdc/hpvm/hpvm/
 HPVM_BUILD_DIR := $(HPVM_INSTALL_DIR)/build/
 INCLUDES := -I$(HPVM_INSTALL_DIR)/include -I$(HPVM_INSTALL_DIR)/benchmarks/include -I$(HPVM_INSTALL_DIR)/projects/hpvm-hdc -I$(HPVM_INSTALL_DIR)/projects/hetero-c++/test/include -I./streaming-src
 
@@ -83,7 +83,7 @@ build/hpvmc.gpu.ll: build/hdc.lowered.gpu.ll
 
 # GenHPVM for the HPVM IR
 build/hpvm.gpu.ll: build/hpvmc.gpu.ll
-	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/HPVMGenHPVM.so -dce -mem2reg -genhpvm $< -S -o $@
+	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/HPVMGenHPVM.so -O1 -dce -mem2reg -genhpvm $< -S -o $@
 
 build/hpvmcompiled.gpu.ll: build/hpvm.gpu.ll
 	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/HPVMBuildDFG.so -load $(HPVM_LIB)/HPVMLocalMem.so -load $(HPVM_LIB)/HPVMDFG2LLVM_GPU_OCL.so -load $(HPVM_LIB)/HPVMDFG2LLVM_CPU.so -load $(HPVM_LIB)/HPVMClearDFG.so -load $(HPVM_LIB)/HPVMDFGTransformPasses.so -localmem -dfg2llvm-gpu-ocl -dfg2llvm-cpu -clearDFG -hpvm-timers-cpu -hpvm-timers-ptx $< -S -o $@
@@ -119,7 +119,7 @@ build/hdc.lowered.fpga.ll: build/hpvm.genhdc.fpga.ll #hpvm.
 # HCC -> HPVM
 build/hpvmc.fpga.ll: build/hdc.lowered.fpga.ll
 	$(HPVM_BIN)/hcc $< -declsfile $(HPVM_DECLS_FILE) -sanitise-funcs --dot-dfg  -S -o $@
-	$(HPVM_BIN)/opt $@ -dce -S -o $@
+	$(HPVM_BIN)/opt $@ -dce -O1 -S -o $@
 
 build/hpvm.host.fpga.ll build/hpvm.kernels.fpga.ll build/hpvm.kernels.fpga.cl build/hpvm.kernels.fpga.aocx: build/hpvmc.fpga.ll
 	$(HPVM_BIN)/hpvm2fpga -hm=build/hpvm.host.fpga.ll -km=build/hpvm.kernels.fpga.ll -clm=build/hpvm.kernels.fpga.cl -cxm=build/hpvm.kernels.fpga.aocx -emu -run-aoc $^
