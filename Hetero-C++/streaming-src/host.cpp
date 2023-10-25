@@ -12,7 +12,7 @@
 
 
 #define HAMMING_DIST
-//#define OFFLOAD_RP_GEN
+#define OFFLOAD_RP_GEN
 
 
 #ifdef HAMMING_DIST
@@ -90,6 +90,10 @@ int main(int argc, char** argv)
 	std::cout << "Main Starting" << std::endl;
 
 	srand(time(NULL));
+
+
+
+
 
 
     assert(argc == 2 && "Expected parameter");
@@ -180,13 +184,13 @@ int main(int argc, char** argv)
 	size_t scores_size = N_CENTER * sizeof(SCORES_TYPE);
 
 
-	// Encoding matrix: First we write into rp_matrix_transpose, then transpose it to get rp_matrix,
-	// which is the correct dimensions for encoding input features.
-	__hypermatrix__<N_FEAT, Dhv, hvtype> rp_matrix_transpose = __hetero_hdc_hypermatrix<N_FEAT, Dhv, hvtype>();
-	__hypermatrix__<Dhv, N_FEAT, hvtype> rp_matrix = __hetero_hdc_hypermatrix<Dhv, N_FEAT, hvtype>();
 
-	//__hypermatrix__<Dhv, N_FEAT, int>* rp_matrix_ptr = &rp_matrix;
+
+
+
+
 	size_t rp_matrix_size = N_FEAT * Dhv * sizeof(hvtype);
+
 
 	__hypervector__<Dhv, hvtype> rp_seed = __hetero_hdc_create_hypervector<Dhv, hvtype>(0, (void*) initialize_rp_seed<hvtype>);	
 
@@ -229,6 +233,7 @@ int main(int argc, char** argv)
 #else
 	// Generate the random projection matrix. Dhv rows, N_FEAT cols, so Dhv x N_FEAT.
 	__hypervector__<Dhv, hvtype> row = __hetero_hdc_hypervector<Dhv, hvtype>();
+    __hypermatrix__<N_FEAT, Dhv, hvtype> rp_matrix_transpose = __hetero_hdc_hypermatrix<N_FEAT, Dhv, hvtype>();
 
 
 	// Each row is just a wrap shift of the seed.
@@ -238,7 +243,8 @@ int main(int argc, char** argv)
 	} 
 
 	// Now transpose in order to be able to multiply with input hv in DFG.
-	rp_matrix = __hetero_hdc_matrix_transpose<N_FEAT, Dhv, hvtype>(rp_matrix_transpose, N_FEAT, Dhv);
+	__hypermatrix__<Dhv, N_FEAT, hvtype> rp_matrix = __hetero_hdc_matrix_transpose<N_FEAT, Dhv, hvtype>(rp_matrix_transpose, N_FEAT, Dhv);
+
     auto rp_matrix_buffer = &rp_matrix;
 #endif
 
