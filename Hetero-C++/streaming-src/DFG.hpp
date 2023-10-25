@@ -4,14 +4,14 @@
 #include <heterocc.h>
 #include <iostream>
 
-#define HAMMING_DIST
+//#define HAMMING_DIST
 
 #undef D
 #undef N_FEATURES
 #undef K
 
 typedef int binary;
-typedef int hvtype;
+typedef float hvtype;
 
 
 #ifdef HAMMING_DIST
@@ -192,7 +192,6 @@ void __attribute__ ((noinline)) clustering_node(/* Input Buffers: 3*/
     *scores_ptr = __hetero_hdc_cossim<K, D, hvtype>(encoded_hv, clusters);
     #endif
 
-
    __hetero_task_end(task1);
     }
     
@@ -222,7 +221,6 @@ void __attribute__ ((noinline)) clustering_node(/* Input Buffers: 3*/
         SCORES_TYPE score = (SCORES_TYPE) (*scores_ptr)[0][k];
         #endif
         if (score > max_score) {
-            
             max_score = score;
             max_idx = k;
         }
