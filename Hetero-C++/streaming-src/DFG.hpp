@@ -227,14 +227,17 @@ void __attribute__ ((noinline)) clustering_node(/* Input Buffers: 3*/
         
     } 
     // Write labels
-    labels[encoded_hv_idx] = max_idx;
+    //labels[encoded_hv_idx] = max_idx;
+    *labels = max_idx;
 
 
+#if 0
     // Unclear if this actually works as intended.
     *update_hv_ptr =  __hetero_hdc_get_matrix_row<K, D, hvtype>(*temp_clusters_ptr, K, D, max_idx);
     *update_hv_ptr = __hetero_hdc_sum<D, hvtype>(*update_hv_ptr, *encoded_hv_ptr); // May need an instrinsic for this.
     __hetero_hdc_set_matrix_row<K, D, hvtype>(*temp_clusters_ptr, *update_hv_ptr, max_idx); // How do we normalize?
     
+#endif
 
     __hetero_task_end(task2);
     }
@@ -377,6 +380,27 @@ void root_node( /* Input buffers: 4*/
     clustering_node<D, K, N_VEC>(encoded_hv_ptr, encoded_hv_size, clusters_ptr, clusters_size, temp_clusters_ptr, temp_clusters_size, scores_ptr, scores_size,  update_hv_ptr, update_hv_size, labels_index, labels, labels_size); 
 
     __hetero_task_end(clustering_task);
+
+
+    void* update_task = __hetero_task_begin(
+        /* Input Buffers: 4 */  4, 
+                                encoded_hv_ptr, encoded_hv_size, 
+                                temp_clusters_ptr, temp_clusters_size, 
+                                update_hv_ptr, update_hv_size,
+                                labels, labels_size,
+        /* Output Buffers: 1 */ 1,  temp_clusters_ptr, temp_clusters_size,
+        "update_task"  
+    );
+
+    {
+
+        *update_hv_ptr =  __hetero_hdc_get_matrix_row<K, D, hvtype>(*temp_clusters_ptr, K, D, *labels);
+        *update_hv_ptr = __hetero_hdc_sum<D, hvtype>(*update_hv_ptr, *encoded_hv_ptr); // May need an instrinsic for this.
+        __hetero_hdc_set_matrix_row<K, D, hvtype>(*temp_clusters_ptr, *update_hv_ptr, *labels); // How do we normalize?
+
+    }
+
+    __hetero_task_end(update_task);
 
     __hetero_section_end(root_section);
     return;
