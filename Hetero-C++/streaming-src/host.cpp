@@ -261,8 +261,12 @@ int main(int argc, char** argv)
 		// Encode the first N_CENTER hypervectors and set them to be the clusters.
 
 		void* initialize_DFG = __hetero_launch(
-			//(void*) InitialEncodingDAG<Dhv, N_FEAT>,
+#if 1
+			(void*) InitialEncodingDAG<Dhv, N_FEAT>,
+#else
 			(void*) rp_encoding_node_copy<Dhv, N_FEAT>,
+#endif
+
 			2 + 1,
 			/* Input Buffers: 2*/ 
             rp_matrix_buffer, rp_matrix_size,
