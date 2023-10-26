@@ -327,6 +327,7 @@ void encoding_and_inference_node(
                 __hypermatrix__<D, N_FEATURES, hvtype>* rp_matrix_ptr, size_t rp_matrix_size, 
                 __hypervector__<N_FEATURES, hvtype>* datapoint_vec_ptr, size_t datapoint_vec_size, // Features
                 __hypermatrix__<K, D, hvtype>* clusters_ptr, size_t clusters_size, 
+int* labels, size_t labels_size,
                 __hypermatrix__<K, D, hvtype>* temp_clusters_ptr, size_t temp_clusters_size, // ALSO AN OUTPUT
                 /* Local Vars: 2*/
                 __hypervector__<D, hvtype>* encoded_hv_ptr, size_t encoded_hv_size, 
@@ -336,9 +337,8 @@ void encoding_and_inference_node(
 
                 __hypervector__<D, hvtype>* update_hv_ptr, size_t update_hv_size,  
                 /* Parameters: 2*/
-                int labels_index, int convergence_threshold, // <- not used.
-                /* Output Buffers: 2*/
-                int* labels, size_t labels_size){
+                int labels_index, int convergence_threshold
+                ){
 
     void* root_section = __hetero_section_begin();
 
@@ -375,7 +375,6 @@ void encoding_and_inference_node(
     __hetero_task_end(clustering_task);
 
     __hetero_section_end(root_section);
-    return;
 
 }
 
@@ -409,12 +408,12 @@ void root_node( /* Input buffers: 4*/
             rp_matrix_ptr, rp_matrix_size, 
             datapoint_vec_ptr,  datapoint_vec_size,
             clusters_ptr,  clusters_size, 
+            labels,  labels_size,
             temp_clusters_ptr,  temp_clusters_size, // ALSO AN OUTPUT
             encoded_hv_ptr, encoded_hv_size, 
             scores_ptr, scores_size,
             update_hv_ptr,  update_hv_size,  
             labels_index, convergence_threshold, // <- not used.
-            labels,  labels_size,
 
             /* Output Buffers: 1 */ 2, 
             encoded_hv_ptr, encoded_hv_size,
@@ -422,17 +421,19 @@ void root_node( /* Input buffers: 4*/
             "inference_task"  
             );
 
-        encoding_and_inference_node<D, K, N_VEC>(
+    __hetero_hdc_inference(
+            18,
+            (void*) encoding_and_inference_node<D, K, N_VEC, N_FEATURES>,
             rp_matrix_ptr, rp_matrix_size, 
             datapoint_vec_ptr,  datapoint_vec_size,
             clusters_ptr,  clusters_size, 
+            labels,  labels_size,
             temp_clusters_ptr,  temp_clusters_size, // ALSO AN OUTPUT
             encoded_hv_ptr, encoded_hv_size, 
             scores_ptr, scores_size,
             update_hv_ptr,  update_hv_size,  
-            labels_index, convergence_threshold, // <- not used.
-            labels,  labels_size
-        );
+            labels_index, convergence_threshold 
+            );
 
     __hetero_task_end(inference_task);
 
