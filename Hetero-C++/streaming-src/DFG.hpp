@@ -197,9 +197,9 @@ void __attribute__ ((noinline)) clustering_node(/* Input Buffers: 3*/
     
     {
    void* task2 = __hetero_task_begin(
-        /* Input Buffers: 1*/ 6, scores_ptr, scores_size, labels, labels_size, encoded_hv_ptr, encoded_hv_size, temp_clusters_ptr, temp_clusters_size, update_hv_ptr, update_hv_size,
+        /* Input Buffers: 1*/ 4, encoded_hv_ptr, encoded_hv_size, scores_ptr, scores_size, labels, labels_size,
         /* paramters: 1*/      encoded_hv_idx,
-        /* Output Buffers: 1*/ 2,  temp_clusters_ptr, temp_clusters_size, labels, labels_size, "find_score_and_update_task"
+        /* Output Buffers: 1*/ 2, encoded_hv_ptr, encoded_hv_size, labels, labels_size, "find_score_and_label_task"
     );
 
     
@@ -227,14 +227,10 @@ void __attribute__ ((noinline)) clustering_node(/* Input Buffers: 3*/
         
     } 
     // Write labels
-    labels[encoded_hv_idx] = max_idx;
+    //labels[encoded_hv_idx] = max_idx;
+    *labels = max_idx;
 
 
-    // Unclear if this actually works as intended.
-    *update_hv_ptr =  __hetero_hdc_get_matrix_row<K, D, hvtype>(*temp_clusters_ptr, K, D, max_idx);
-    *update_hv_ptr = __hetero_hdc_sum<D, hvtype>(*update_hv_ptr, *encoded_hv_ptr); // May need an instrinsic for this.
-    __hetero_hdc_set_matrix_row<K, D, hvtype>(*temp_clusters_ptr, *update_hv_ptr, max_idx); // How do we normalize?
-    
 
     __hetero_task_end(task2);
     }
@@ -325,13 +321,13 @@ void gen_rp_matrix(/* Input Buffers*/
 }
 
 
-
-// Dimensionality, Clusters, data point vectors, features per.
 template <int D, int K, int N_VEC, int N_FEATURES>
-void root_node( /* Input buffers: 4*/ 
+void encoding_and_inference_node(
+/* Input buffers: 4*/ 
                 __hypermatrix__<D, N_FEATURES, hvtype>* rp_matrix_ptr, size_t rp_matrix_size, 
                 __hypervector__<N_FEATURES, hvtype>* datapoint_vec_ptr, size_t datapoint_vec_size, // Features
                 __hypermatrix__<K, D, hvtype>* clusters_ptr, size_t clusters_size, 
+int* labels, size_t labels_size,
                 __hypermatrix__<K, D, hvtype>* temp_clusters_ptr, size_t temp_clusters_size, // ALSO AN OUTPUT
                 /* Local Vars: 2*/
                 __hypervector__<D, hvtype>* encoded_hv_ptr, size_t encoded_hv_size, 
@@ -341,9 +337,8 @@ void root_node( /* Input buffers: 4*/
 
                 __hypervector__<D, hvtype>* update_hv_ptr, size_t update_hv_size,  
                 /* Parameters: 2*/
-                int labels_index, int convergence_threshold, // <- not used.
-                /* Output Buffers: 2*/
-                int* labels, size_t labels_size){
+                int labels_index, int convergence_threshold
+                ){
 
     void* root_section = __hetero_section_begin();
 
@@ -370,13 +365,101 @@ void root_node( /* Input buffers: 4*/
                                 labels, labels_size,
                                 scores_ptr, scores_size,
         /* Parameters: 1 */     labels_index,
-        /* Output Buffers: 1 */ 2, labels, labels_size, temp_clusters_ptr, temp_clusters_size,
+        /* Output Buffers: 1 */ 2, encoded_hv_ptr, encoded_hv_size, 
+ labels, labels_size, 
         "clustering_task"  
     );
 
     clustering_node<D, K, N_VEC>(encoded_hv_ptr, encoded_hv_size, clusters_ptr, clusters_size, temp_clusters_ptr, temp_clusters_size, scores_ptr, scores_size,  update_hv_ptr, update_hv_size, labels_index, labels, labels_size); 
 
     __hetero_task_end(clustering_task);
+
+    __hetero_section_end(root_section);
+
+}
+
+
+// Dimensionality, Clusters, data point vectors, features per.
+template <int D, int K, int N_VEC, int N_FEATURES>
+void root_node( /* Input buffers: 4*/ 
+                __hypermatrix__<D, N_FEATURES, hvtype>* rp_matrix_ptr, size_t rp_matrix_size, 
+                __hypervector__<N_FEATURES, hvtype>* datapoint_vec_ptr, size_t datapoint_vec_size, // Features
+                __hypermatrix__<K, D, hvtype>* clusters_ptr, size_t clusters_size, 
+                __hypermatrix__<K, D, hvtype>* temp_clusters_ptr, size_t temp_clusters_size, // ALSO AN OUTPUT
+                /* Local Vars: 2*/
+                __hypervector__<D, hvtype>* encoded_hv_ptr, size_t encoded_hv_size, 
+                
+
+                __hypervector__<K, SCORES_TYPE>* scores_ptr, size_t scores_size,
+
+                __hypervector__<D, hvtype>* update_hv_ptr, size_t update_hv_size,  
+                /* Parameters: 2*/
+                int labels_index, int convergence_threshold, // <- not used.
+                /* Output Buffers: 2*/
+                int* labels, size_t labels_size){
+
+    void* root_section = __hetero_section_begin();
+
+
+    
+    // Re-encode each iteration.
+    void* inference_task = __hetero_task_begin(
+            /* Input Buffers:  */ 10, 
+            rp_matrix_ptr, rp_matrix_size, 
+            datapoint_vec_ptr,  datapoint_vec_size,
+            clusters_ptr,  clusters_size, 
+            labels,  labels_size,
+            temp_clusters_ptr,  temp_clusters_size, // ALSO AN OUTPUT
+            encoded_hv_ptr, encoded_hv_size, 
+            scores_ptr, scores_size,
+            update_hv_ptr,  update_hv_size,  
+            labels_index, convergence_threshold, // <- not used.
+
+            /* Output Buffers: 1 */ 2, 
+            encoded_hv_ptr, encoded_hv_size,
+            labels,  labels_size,
+            "inference_task"  
+            );
+
+    __hetero_hdc_inference(
+            18,
+            (void*) encoding_and_inference_node<D, K, N_VEC, N_FEATURES>,
+            rp_matrix_ptr, rp_matrix_size, 
+            datapoint_vec_ptr,  datapoint_vec_size,
+            clusters_ptr,  clusters_size, 
+            labels,  labels_size,
+            temp_clusters_ptr,  temp_clusters_size, // ALSO AN OUTPUT
+            encoded_hv_ptr, encoded_hv_size, 
+            scores_ptr, scores_size,
+            update_hv_ptr,  update_hv_size,  
+            labels_index, convergence_threshold 
+            );
+
+    __hetero_task_end(inference_task);
+
+
+
+    void* update_task = __hetero_task_begin(
+        /* Input Buffers: 4 */  4, 
+                                encoded_hv_ptr, encoded_hv_size, 
+                                temp_clusters_ptr, temp_clusters_size, 
+                                update_hv_ptr, update_hv_size,
+                                labels, labels_size,
+        /* Output Buffers: 1 */ 2,  
+        labels, labels_size,
+        temp_clusters_ptr, temp_clusters_size,
+        "update_task"  
+    );
+
+    {
+
+        *update_hv_ptr =  __hetero_hdc_get_matrix_row<K, D, hvtype>(*temp_clusters_ptr, K, D, *labels);
+        *update_hv_ptr = __hetero_hdc_sum<D, hvtype>(*update_hv_ptr, *encoded_hv_ptr); // May need an instrinsic for this.
+        __hetero_hdc_set_matrix_row<K, D, hvtype>(*temp_clusters_ptr, *update_hv_ptr, *labels); // How do we normalize?
+
+    }
+
+    __hetero_task_end(update_task);
 
     __hetero_section_end(root_section);
     return;

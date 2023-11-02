@@ -261,8 +261,12 @@ int main(int argc, char** argv)
 		// Encode the first N_CENTER hypervectors and set them to be the clusters.
 
 		void* initialize_DFG = __hetero_launch(
-			//(void*) InitialEncodingDAG<Dhv, N_FEAT>,
+#if 1
+			(void*) InitialEncodingDAG<Dhv, N_FEAT>,
+#else
 			(void*) rp_encoding_node_copy<Dhv, N_FEAT>,
+#endif
+
 			2 + 1,
 			/* Input Buffers: 2*/ 
             rp_matrix_buffer, rp_matrix_size,
@@ -284,6 +288,7 @@ int main(int argc, char** argv)
 		__hypervector__<Dhv, hvtype> cluster_temp = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, hvtype>(clusters, N_CENTER, Dhv, k);
 	}
 
+
 	std::cout << "\nDone init cluster hvs:" << std::endl;
 
 	#if DEBUG
@@ -294,6 +299,7 @@ int main(int argc, char** argv)
 	}
 	#endif
 
+    int label_index = 1;
 	for (int i = 0; i < EPOCH; i++) {
 		// Can we normalize the hypervectors here or do we have to do that in the DFG.
 		std::cout << "Epoch: #" << i << std::endl;
@@ -321,9 +327,22 @@ int main(int argc, char** argv)
                 update_hv_ptr, update_hv_size,
 				j, 0, 
 				/* Output Buffers: 1*/ 
+#ifdef FPGA
 				labels, labels_size,
+#else
+
+                // Directly just push the pointer offset for the location to update
+				(labels+j), sizeof(int),
+#endif
 				2,
-				labels, labels_size,//, false
+
+#ifdef FPGA
+				labels, labels_size,
+#else
+
+                // Directly just push the pointer offset for the location to update
+				(labels+j), sizeof(int),
+#endif
 				&clusters_temp, clusters_size
 			);
 			__hetero_wait(DFG); 
