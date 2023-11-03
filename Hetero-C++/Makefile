@@ -14,6 +14,10 @@ OPENCL_LIB_PATH:=$(OPENCL_PATH/lib64)
 CPU_CFLAGS := -O1 -fenable-matrix -fno-discard-value-names -fno-exceptions -lm -lrt -pthread
 CFLAGS := -O1 -fenable-matrix -fno-discard-value-names -fno-exceptions -lm -lrt -pthread -lOpenCL
 
+ifeq ($(RUN_AOC),1)
+  RUN_AOC := -run-aoc
+endif
+
 # PARAMETERS := -DHPVM -DDEVICE=hpvm::CPU_TARGET
 
 ### ---------- CPU ---------------
@@ -123,7 +127,7 @@ build/hpvmc.fpga.ll: build/hdc.lowered.fpga.ll
 	$(HPVM_BIN)/opt $@ -dce -O1 -S -o $@
 
 build/hpvm.host.fpga.ll build/hpvm.kernels.fpga.ll build/hpvm.kernels.fpga.cl build/hpvm.kernels.fpga.aocx: build/hpvmc.fpga.ll
-	$(HPVM_BIN)/hpvm2fpga -hm=build/hpvm.host.fpga.ll -km=build/hpvm.kernels.fpga.ll -clm=build/hpvm.kernels.fpga.cl -cxm=build/hpvm.kernels.fpga.aocx -run-aoc $^
+	$(HPVM_BIN)/hpvm2fpga -hm=build/hpvm.host.fpga.ll -km=build/hpvm.kernels.fpga.ll -clm=build/hpvm.kernels.fpga.cl -cxm=build/hpvm.kernels.fpga.aocx $(RUN_AOC) $^
 
 
 HPVM_RT := $(HPVM_BUILD_DIR)/tools/hpvm/projects/hpvm-rt/hpvm-rt.bc
