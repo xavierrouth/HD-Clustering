@@ -38,13 +38,12 @@ T zero_hv(size_t loop_index_var) {
 
 template<int D, int N_FEATURES>
 void  rp_encoding_node(/* Input Buffers: 2*/
-        __hypermatrix__<D, N_FEATURES, hvtype>* rp_matrix_ptr, size_t rp_matrix_size, // __hypermatrix__<N_FEATURES, D, binary>
-        __hypervector__<N_FEATURES, hvtype>* input_datapoint_ptr, size_t input_datapoint_size, // __hypervector__<N_FEATURES, int> 
+        __hypermatrix__<D, N_FEATURES, hvtype>* /* __restrict */ rp_matrix_ptr, size_t rp_matrix_size, // __hypermatrix__<N_FEATURES, D, binary>
+        __hypervector__<N_FEATURES, hvtype>* /* __restrict */ input_datapoint_ptr, size_t input_datapoint_size, // __hypervector__<N_FEATURES, int> 
         /* Output Buffers: 1*/
-        __hypervector__<D, hvtype>* output_hv_ptr, size_t output_hv_size) { // __hypervector__<D, binary>
+        __hypervector__<D, hvtype>* /* __restrict */ output_hv_ptr, size_t output_hv_size) { // __hypervector__<D, binary>
     
     void* section = __hetero_section_begin();
-
 
     void* task = __hetero_task_begin(
         /* Input Buffers: 2*/ 3, rp_matrix_ptr, rp_matrix_size, input_datapoint_ptr, input_datapoint_size, output_hv_ptr, output_hv_size,
@@ -53,8 +52,6 @@ void  rp_encoding_node(/* Input Buffers: 2*/
         "inner_rp_encoding_task"
     );
 
-    
-    
     __hypervector__<D, hvtype> encoded_hv = __hetero_hdc_create_hypervector<D, hvtype>(0, (void*) zero_hv<hvtype>);
     *output_hv_ptr = encoded_hv;
 
@@ -82,14 +79,12 @@ void  rp_encoding_node(/* Input Buffers: 2*/
 // RP encoding reduces N_features -> D 
 template<int D, int N_FEATURES>
 void  rp_encoding_node_copy(/* Input Buffers: 2*/
-        __hypermatrix__<D, N_FEATURES, hvtype>* rp_matrix_ptr, size_t rp_matrix_size, 
-        __hypervector__<N_FEATURES, hvtype>* input_datapoint_ptr, size_t input_datapoint_size, 
+        __hypermatrix__<D, N_FEATURES, hvtype>* /* __restrict */ rp_matrix_ptr, size_t rp_matrix_size, 
+        __hypervector__<N_FEATURES, hvtype>* /* __restrict */ input_datapoint_ptr, size_t input_datapoint_size, 
         /* Output Buffers: 1*/
-        __hypervector__<D, hvtype>* output_hv_ptr, size_t output_hv_size) {
+        __hypervector__<D, hvtype>* /* __restrict */ output_hv_ptr, size_t output_hv_size) {
     
     void* section = __hetero_section_begin();
-
-
 
     void* task = __hetero_task_begin(
         /* Input Buffers: 2*/ 3, rp_matrix_ptr, rp_matrix_size, input_datapoint_ptr, input_datapoint_size, output_hv_ptr, output_hv_size,
@@ -126,10 +121,10 @@ void  rp_encoding_node_copy(/* Input Buffers: 2*/
 // RP encoding reduces N_features -> D 
 template<int D, int N_FEATURES>
 void  InitialEncodingDAG(/* Input Buffers: 2*/
-        __hypermatrix__<D, N_FEATURES, hvtype>* rp_matrix_ptr, size_t rp_matrix_size, 
-        __hypervector__<N_FEATURES, hvtype>* input_datapoint_ptr, size_t input_datapoint_size, 
+        __hypermatrix__<D, N_FEATURES, hvtype>* /* __restrict */ rp_matrix_ptr, size_t rp_matrix_size, 
+        __hypervector__<N_FEATURES, hvtype>* /* __restrict */ input_datapoint_ptr, size_t input_datapoint_size, 
         /* Output Buffers: 1*/
-        __hypervector__<D, hvtype>* output_hv_ptr, size_t output_hv_size) {
+        __hypervector__<D, hvtype>* /* __restrict */ output_hv_ptr, size_t output_hv_size) {
 
     
     void* section = __hetero_section_begin();
@@ -159,14 +154,14 @@ void  InitialEncodingDAG(/* Input Buffers: 2*/
 // In the streaming implementation, this runs for each encoded HV, so N_VEC * EPOCHs times.
 template<int D, int K, int N_VEC>
 void __attribute__ ((noinline)) clustering_node(/* Input Buffers: 3*/
-        __hypervector__<D, hvtype>* encoded_hv_ptr, size_t encoded_hv_size, 
-        __hypermatrix__<K, D, hvtype>* clusters_ptr, size_t clusters_size, 
-        __hypermatrix__<K, D, hvtype>* temp_clusters_ptr, size_t temp_clusters_size, // ALSO AN OUTPUT
-        __hypervector__<K, SCORES_TYPE>* scores_ptr, size_t scores_size, // Used as Local var.
-        __hypervector__<D, hvtype>* update_hv_ptr, size_t update_hv_size,  // Used in second stage of clustering node for extracting and accumulating
+        __hypervector__<D, hvtype>* /* __restrict */ encoded_hv_ptr, size_t encoded_hv_size, 
+        __hypermatrix__<K, D, hvtype>* /* __restrict */ clusters_ptr, size_t clusters_size, 
+        __hypermatrix__<K, D, hvtype>* /* __restrict */ temp_clusters_ptr, size_t temp_clusters_size, // ALSO AN OUTPUT
+        __hypervector__<K, SCORES_TYPE>* /* __restrict */ scores_ptr, size_t scores_size, // Used as Local var.
+        __hypervector__<D, hvtype>* /* __restrict */ update_hv_ptr, size_t update_hv_size,  // Used in second stage of clustering node for extracting and accumulating
         int encoded_hv_idx,
         /* Output Buffers: 1*/
-        int* labels, size_t labels_size) { // Mapping of HVs to Clusters. int[N_VEC]
+        int* /* __restrict */ labels, size_t labels_size) { // Mapping of HVs to Clusters. int[N_VEC]
 
     void* section = __hetero_section_begin();
 
@@ -174,7 +169,6 @@ void __attribute__ ((noinline)) clustering_node(/* Input Buffers: 3*/
     { // Scoping hack in order to have 'scores' defined in each task.
 
 
-    
     void* task1 = __hetero_task_begin(
         /* Input Buffers: 4*/ 3, encoded_hv_ptr, encoded_hv_size, clusters_ptr, clusters_size, scores_ptr, scores_size, 
         /* Output Buffers: 1*/ 1,  scores_ptr, scores_size, "clustering_scoring_task"
@@ -244,10 +238,10 @@ void __attribute__ ((noinline)) clustering_node(/* Input Buffers: 3*/
 // RP Matrix Node Generation. Performs element wise rotation on ID matrix rows and stores into destination buffer.
 template <int D,  int N_FEATURES>
 void gen_rp_matrix(/* Input Buffers*/
-        __hypervector__<D, hvtype>* rp_seed_vector, size_t  rp_seed_vector_size,
-        __hypervector__<D, hvtype>* row_buffer, size_t  row_buffer_size,
-        __hypermatrix__<N_FEATURES, D, hvtype>* shifted_matrix, size_t  shifted_matrix_size,
-        __hypermatrix__<D, N_FEATURES, hvtype>* transposed_matrix, size_t  transposed_matrix_size
+        __hypervector__<D, hvtype>* /* __restrict */ rp_seed_vector, size_t  rp_seed_vector_size,
+        __hypervector__<D, hvtype>* /* __restrict */ row_buffer, size_t  row_buffer_size,
+        __hypermatrix__<N_FEATURES, D, hvtype>* /* __restrict */ shifted_matrix, size_t  shifted_matrix_size,
+        __hypermatrix__<D, N_FEATURES, hvtype>* /* __restrict */ transposed_matrix, size_t  transposed_matrix_size
         ){
 
 
@@ -324,18 +318,18 @@ void gen_rp_matrix(/* Input Buffers*/
 template <int D, int K, int N_VEC, int N_FEATURES>
 void encoding_and_inference_node(
 /* Input buffers: 4*/ 
-                __hypermatrix__<D, N_FEATURES, hvtype>* rp_matrix_ptr, size_t rp_matrix_size, 
-                __hypervector__<N_FEATURES, hvtype>* datapoint_vec_ptr, size_t datapoint_vec_size, // Features
-                __hypermatrix__<K, D, hvtype>* clusters_ptr, size_t clusters_size, 
+                __hypermatrix__<D, N_FEATURES, hvtype>* /* __restrict */ rp_matrix_ptr, size_t rp_matrix_size, 
+                __hypervector__<N_FEATURES, hvtype>* /* __restrict */ datapoint_vec_ptr, size_t datapoint_vec_size, // Features
+                __hypermatrix__<K, D, hvtype>* /* __restrict */ clusters_ptr, size_t clusters_size, 
 int* labels, size_t labels_size,
-                __hypermatrix__<K, D, hvtype>* temp_clusters_ptr, size_t temp_clusters_size, // ALSO AN OUTPUT
+                __hypermatrix__<K, D, hvtype>* /* __restrict */ temp_clusters_ptr, size_t temp_clusters_size, // ALSO AN OUTPUT
                 /* Local Vars: 2*/
-                __hypervector__<D, hvtype>* encoded_hv_ptr, size_t encoded_hv_size, 
+                __hypervector__<D, hvtype>* /* __restrict */ encoded_hv_ptr, size_t encoded_hv_size, 
                 
 
-                __hypervector__<K, SCORES_TYPE>* scores_ptr, size_t scores_size,
+                __hypervector__<K, SCORES_TYPE>* /* __restrict */ scores_ptr, size_t scores_size,
 
-                __hypervector__<D, hvtype>* update_hv_ptr, size_t update_hv_size,  
+                __hypervector__<D, hvtype>* /* __restrict */ update_hv_ptr, size_t update_hv_size,  
                 /* Parameters: 2*/
                 int labels_index, int convergence_threshold
                 ){
@@ -382,17 +376,14 @@ int* labels, size_t labels_size,
 // Dimensionality, Clusters, data point vectors, features per.
 template <int D, int K, int N_VEC, int N_FEATURES>
 void root_node( /* Input buffers: 4*/ 
-                __hypermatrix__<D, N_FEATURES, hvtype>* rp_matrix_ptr, size_t rp_matrix_size, 
-                __hypervector__<N_FEATURES, hvtype>* datapoint_vec_ptr, size_t datapoint_vec_size, // Features
-                __hypermatrix__<K, D, hvtype>* clusters_ptr, size_t clusters_size, 
-                __hypermatrix__<K, D, hvtype>* temp_clusters_ptr, size_t temp_clusters_size, // ALSO AN OUTPUT
-                /* Local Vars: 2*/
-                __hypervector__<D, hvtype>* encoded_hv_ptr, size_t encoded_hv_size, 
-                
-
-                __hypervector__<K, SCORES_TYPE>* scores_ptr, size_t scores_size,
-
-                __hypervector__<D, hvtype>* update_hv_ptr, size_t update_hv_size,  
+                __hypermatrix__<D, N_FEATURES, hvtype>* /* __restrict */ rp_matrix_ptr, size_t rp_matrix_size, 
+                __hypervector__<N_FEATURES, hvtype>* /* __restrict */ datapoint_vec_ptr, size_t datapoint_vec_size, // Features
+                __hypermatrix__<K, D, hvtype>* /* __restrict */ clusters_ptr, size_t clusters_size, 
+                __hypermatrix__<K, D, hvtype>* /* __restrict */ temp_clusters_ptr, size_t temp_clusters_size, // ALSO AN OUTPUT
+                /* Local Vars: 3*/
+                __hypervector__<D, hvtype>* /* __restrict */ encoded_hv_ptr, size_t encoded_hv_size, 
+                __hypervector__<K, SCORES_TYPE>* /* __restrict */ scores_ptr, size_t scores_size,
+                __hypervector__<D, hvtype>* /* __restrict */ update_hv_ptr, size_t update_hv_size,  
                 /* Parameters: 2*/
                 int labels_index, int convergence_threshold, // <- not used.
                 /* Output Buffers: 2*/
@@ -470,16 +461,14 @@ void root_node( /* Input buffers: 4*/
 
 template <int D, int K, int N_VEC, int N_FEATURES>
 void flattened_root( /* Input buffers: 4*/ 
-                __hypermatrix__<D, N_FEATURES, hvtype>* rp_matrix_ptr, size_t rp_matrix_size, 
-                __hypervector__<N_FEATURES, hvtype>* datapoint_vec_ptr, size_t datapoint_vec_size, // Features
-                __hypermatrix__<K, D, hvtype>* clusters_ptr, size_t clusters_size, 
-                __hypermatrix__<K, D, hvtype>* temp_clusters_ptr, size_t temp_clusters_size, // ALSO AN OUTPUT
-                /* Local Vars: 2*/
-                __hypervector__<D, hvtype>* encoded_hv_ptr, size_t encoded_hv_size, 
-                
-                __hypervector__<K, hvtype>* scores_ptr, size_t scores_size,
-
-                __hypervector__<D, hvtype>* update_hv_ptr, size_t update_hv_size,  // Used in second stage of clustering node for extracting and accumulating
+                __hypermatrix__<D, N_FEATURES, hvtype>* /* __restrict */ rp_matrix_ptr, size_t rp_matrix_size, 
+                __hypervector__<N_FEATURES, hvtype>* /* __restrict */ datapoint_vec_ptr, size_t datapoint_vec_size, // Features
+                __hypermatrix__<K, D, hvtype>* /* __restrict */ clusters_ptr, size_t clusters_size, 
+                __hypermatrix__<K, D, hvtype>* /* __restrict */ temp_clusters_ptr, size_t temp_clusters_size, // ALSO AN OUTPUT
+                /* Local Vars: 3*/
+                __hypervector__<D, hvtype>* /* __restrict */ encoded_hv_ptr, size_t encoded_hv_size, 
+                __hypervector__<K, hvtype>* /* __restrict */ scores_ptr, size_t scores_size,
+                __hypervector__<D, hvtype>* /* __restrict */ update_hv_ptr, size_t update_hv_size,  // Used in second stage of clustering node for extracting and accumulating
                 /* Parameters: 2*/
                 int labels_index, int convergence_threshold, // <- not used.
                 /* Output Buffers: 2*/

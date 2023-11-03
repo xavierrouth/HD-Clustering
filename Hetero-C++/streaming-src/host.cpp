@@ -11,7 +11,7 @@
 #include <cmath>
 
 
-#define HAMMING_DIST
+// #define HAMMING_DIST
 #define OFFLOAD_RP_GEN
 
 
@@ -52,6 +52,7 @@ void datasetBinaryRead(std::vector<int> &data, std::string path){
 	}
 	file_.close();
 }
+
 template <typename T>
 T initialize_hv(T* datapoint_vector, size_t loop_index_var) {
 	//std::cout << ((float*)datapoint_vector)[loop_index_var] << "\n";
@@ -92,11 +93,6 @@ int main(int argc, char** argv)
 
 	srand(time(NULL));
 
-
-
-
-
-
     assert(argc == 2 && "Expected parameter");
 	int EPOCH = std::atoi(argv[1]);
    
@@ -109,7 +105,6 @@ int main(int argc, char** argv)
 	int shuffle_arr[y_data.size()];
 	//srand (time(NULL));
 	
-	srand(0);
 	// Does this shuffle features within a datapoint or datapoints within every entry.
 	if(shuffled){
 		std::vector<int> X_data_shuffled(X_data.size());
@@ -133,7 +128,8 @@ int main(int argc, char** argv)
 		X_data = X_data_shuffled;
 		y_data = y_data_shuffled;
 	}	
-	
+
+	std::cout << y_data.size() << std::endl;
 	assert(N_SAMPLE == y_data.size());
 	
 	std::vector<hvtype> floatVec(X_data.begin(), X_data.end());
@@ -159,7 +155,6 @@ int main(int argc, char** argv)
 	*((__hypervector__<Dhv, hvtype>*) encoded_hv_buffer) = encoded_hv;
 	size_t encoded_hv_size = Dhv * sizeof(hvtype);
 
-
 	hvtype* update_hv_ptr = new hvtype[Dhv];
 	size_t update_hv_size = Dhv * sizeof(hvtype);
 	
@@ -183,12 +178,7 @@ int main(int argc, char** argv)
 	__hypervector__<Dhv, SCORES_TYPE> scores = __hetero_hdc_hypervector<Dhv, SCORES_TYPE>();
 	SCORES_TYPE* scores_buffer = new SCORES_TYPE[N_CENTER];
 	size_t scores_size = N_CENTER * sizeof(SCORES_TYPE);
-
-
-
-
-
-
+	
 
 	size_t rp_matrix_size = N_FEAT * Dhv * sizeof(hvtype);
 
@@ -250,8 +240,6 @@ int main(int argc, char** argv)
 #endif
 
 
-
-
 	// Initialize cluster hvs.
 	std::cout << "Init cluster hvs:" << std::endl;
 	for (int k = 0; k < N_CENTER; k++) {
@@ -285,7 +273,6 @@ int main(int argc, char** argv)
 		std::cout <<" Cluter "<< k << "\n";
         print_hv<Dhv, hvtype>(cluster);
 		__hetero_hdc_set_matrix_row<N_CENTER, Dhv, hvtype>(clusters, cluster, k);
-		__hypervector__<Dhv, hvtype> cluster_temp = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, hvtype>(clusters, N_CENTER, Dhv, k);
 	}
 
 
