@@ -11,10 +11,37 @@
 #include <iostream>
 #include <fstream>
 
+#define Dhv				2048  //hypervectors length
+#define UCIHAR
+
+#ifdef MNIST
+
+#define N_CENTER		10	//number of centers. (e.g., isolet: 26,)
+#define N_FEAT			784	//feature per input (e.g., isolet: 617)
+#define N_SAMPLE 		10000
+std::string X_data_path = "../dataset/mnist_testX.bin";
+std::string y_data_path = "../dataset/mnist_testY.bin";
+#endif
+
+#ifdef ISOLET
+
+#define N_CENTER		26	//number of centers. (e.g., isolet: 26,)
+#define N_FEAT			617	//feature per input (e.g., isolet: 617)
+
+#define N_SAMPLE 		6238
+std::string X_data_path = "../dataset/isolet_train_trainX.bin";
+std::string y_data_path = "../dataset/isolet_train_trainY.bin";
+#endif
+
+#ifdef UCIHAR
+
 #define N_CENTER		6	//number of centers. (e.g., isolet: 26,)
 #define N_FEAT			561	//feature per input (e.g., isolet: 617)
-#define Dhv				2048  //hypervectors length
 #define N_SAMPLE 		1554
+std::string X_data_path = "../dataset/ucihar_testX.bin";
+std::string y_data_path = "../dataset/ucihar_testY.bin";
+#endif
+
 
 #define COL				8 //number of columns of a matrix-vector multiplication window
 #define ROW				32 //number of rows of a matrix-vector multiplication window (32, 64, 128, 256, 512)
@@ -30,6 +57,5 @@
 
 //int EPOCH = 10;
 bool shuffled = false;
-std::string X_data_path = "../dataset/ucihar_testX.bin";
-std::string y_data_path = "../dataset/ucihar_testY.bin";
+
 
