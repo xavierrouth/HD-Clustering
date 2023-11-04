@@ -37,9 +37,9 @@ std::string y_data_path = "../dataset/isolet_train_trainY.bin";
 
 #define N_CENTER		6	//number of centers. (e.g., isolet: 26,)
 #define N_FEAT			561	//feature per input (e.g., isolet: 617)
-#define N_SAMPLE 		1554
-std::string X_data_path = "../dataset/ucihar_testX.bin";
-std::string y_data_path = "../dataset/ucihar_testY.bin";
+#define N_SAMPLE 		6213
+std::string X_data_path = "../dataset/ucihar_trainX.bin";
+std::string y_data_path = "../dataset/ucihar_trainY.bin";
 #endif
 
 

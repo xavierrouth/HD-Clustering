@@ -10,7 +10,7 @@
 #include <cassert>
 #include <cmath>
 
-
+#define FPGA
 // #define HAMMING_DIST
 #define OFFLOAD_RP_GEN
 
