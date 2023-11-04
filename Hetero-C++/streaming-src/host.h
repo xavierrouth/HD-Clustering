@@ -12,7 +12,8 @@
 #include <fstream>
 
 #define Dhv				2048  //hypervectors length
-#define UCIHAR
+//#define UCIHAR
+#define MNIST
 
 #ifdef MNIST
 
