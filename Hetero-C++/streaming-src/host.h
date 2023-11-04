@@ -13,7 +13,8 @@
 
 #define Dhv				2048  //hypervectors length
 //#define UCIHAR
-#define MNIST
+//#define MNIST
+#define ISOLET
 
 #ifdef MNIST
 
