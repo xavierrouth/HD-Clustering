@@ -28,6 +28,8 @@ host-cpu: build/output.ll
 
 # Clang Frontend to IR
 build/host.cpu.ll: streaming-src/host.cpp
+	$(info  )
+	$(info Compiling input Hetero-C++ source into LLVM IR)
 	$(HPVM_BIN)/clang++ -DHPVM -DDEVICE=hpvm::CPU_TARGET $(CFLAGS) $(INCLUDES) -S -emit-llvm $^ -o $@ 
 #$HPVM_BIN/clang++ -O1 -I$OPENCL_PATH/include/CL -L$OPENCL_LIB_PATH -I$HPVM_ROOT/projects/hetero-c++/test/include/ -lm -lrt -pthread -lOpenCL  $INCLUDE_FLAG -fenable-matrix    $PREFIX.cpp -S -emit-llvm -o $PREFIX.ll
 
@@ -38,10 +40,14 @@ build/hpvm.genhdc.cpu.ll: build/host.cpu.ll
 
 # Lower HDC Intrinsics
 build/hdc.lowered.cpu.ll: build/hpvm.genhdc.cpu.ll #hpvm. # -enable-hcc
+	$(info  )
+	$(info Lower HDC intrinsics into HPVM IR)
 	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/LLVMHPVMHDC.so -vector-block-dim=64 -lower-hdc  -dce -simplifycfg $< -S -o $@ 
 	
 # HCC -> HPVM
 build/hpvmc.cpu.ll: build/hdc.lowered.cpu.ll
+	$(info  )
+	$(info Lower Hetero-C++ into HPVM IR)
 	$(HPVM_BIN)/hcc $< -declsfile $(HPVM_DECLS_FILE) -sanitise-funcs --dot-dfg  -S -o $@
 	$(HPVM_BIN)/opt $@ -dce -S -o $@
 
@@ -57,6 +63,8 @@ HPVM_RT := $(HPVM_BUILD_DIR)/tools/hpvm/projects/hpvm-rt/hpvm-rt.bc
 
 # LINK HPVM RT and DCE
 build/output.ll: build/hpvmcompiled.cpu.ll # build/cpu_test.hpvmcompiled.ll
+	$(info  )
+	$(info Generate host executable)
 	$(HPVM_INSTALL_DIR)/build/bin/llvm-link $< $(HPVM_RT) -S -o $@ 
 	$(HPVM_INSTALL_DIR)/build/bin/opt -dce -globaldce $< -S -o $<
 
@@ -64,6 +72,8 @@ build/output.ll: build/hpvmcompiled.cpu.ll # build/cpu_test.hpvmcompiled.ll
 
 # Generate Executable
 host-gpu: build/output.gpu.ll
+	$(info  )
+	$(info Compiling input Hetero-C++ source into LLVM IR)
 	$(HPVM_INSTALL_DIR)/build/bin/clang++ -I$(OPENCL_PATH)/include/CL -L$(OPENCL_LIB_PATH) -lm -lrt -pthread -lOpenCL -O2 $< -o $@
 
 # Clang Frontend to IR
@@ -78,10 +88,14 @@ build/hpvm.genhdc.gpu.ll: build/host.gpu.ll
 
 # Lower HDC Intrinsics
 build/hdc.lowered.gpu.ll: build/hpvm.genhdc.gpu.ll #hpvm.
+	$(info  )
+	$(info Lower HDC intrinsics into HPVM IR)
 	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/LLVMHPVMHDC.so -vector-block-dim=1 -lower-hdc -enable-hcc -dce -simplifycfg $< -S -o $@
 
 # HCC -> HPVM
 build/hpvmc.gpu.ll: build/hdc.lowered.gpu.ll
+	$(info  )
+	$(info Lower Hetero-C++ into HPVM IR)
 	$(HPVM_BIN)/hcc $< -declsfile $(HPVM_DECLS_FILE) -sanitise-funcs --dot-dfg --skip-verify -S -o $@
 	$(HPVM_BIN)/opt $@ -dce -S -o $@
 
@@ -97,6 +111,8 @@ HPVM_RT := $(HPVM_BUILD_DIR)/tools/hpvm/projects/hpvm-rt/hpvm-rt.bc
 
 # LINK HPVM RT and DCE
 build/output.gpu.ll: build/hpvmcompiled.gpu.ll # build/gpu_test.hpvmcompiled.ll
+	$(info  )
+	$(info Generate host executable)
 	$(HPVM_INSTALL_DIR)/build/bin/llvm-link $< $(HPVM_RT) -S -o $@ 
 	$(HPVM_INSTALL_DIR)/build/bin/opt -dce -globaldce $< -S -o $<
 
