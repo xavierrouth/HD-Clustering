@@ -135,9 +135,7 @@ int main(int argc, char** argv)
 	}	
 	
 	assert(N_SAMPLE == y_data.size());
-	
 	std::vector<hvtype> floatVec(X_data.begin(), X_data.end());
-
 	hvtype* input_vectors = floatVec.data();
 	// N_FEAT is number of entries per vector
 	size_t input_vector_size = N_FEAT * sizeof(hvtype); // Size of a single vector
@@ -154,9 +152,7 @@ int main(int argc, char** argv)
 	t_start = std::chrono::high_resolution_clock::now();
 
 	// Host allocated memory 
-	__hypervector__<Dhv, hvtype> encoded_hv = __hetero_hdc_hypervector<Dhv, hvtype>();
 	hvtype* encoded_hv_buffer = new hvtype[Dhv];
-	*((__hypervector__<Dhv, hvtype>*) encoded_hv_buffer) = encoded_hv;
 	size_t encoded_hv_size = Dhv * sizeof(hvtype);
 
 
@@ -165,22 +161,18 @@ int main(int argc, char** argv)
 	
 	// Used to store a temporary cluster for initializion
 	__hypervector__<Dhv, hvtype> cluster = __hetero_hdc_hypervector<Dhv, hvtype>();
-	hvtype* cluster_buffer = new hvtype[Dhv];
 	size_t cluster_size = Dhv * sizeof(hvtype);
 
 	// Read from during clustering, updated from clusters_temp.
 	__hypermatrix__<N_CENTER, Dhv, hvtype> clusters = __hetero_hdc_hypermatrix<N_CENTER, Dhv, hvtype>();
-	hvtype* clusters_buffer = new hvtype[N_CENTER * Dhv];
 	size_t clusters_size = N_CENTER * Dhv * sizeof(hvtype);
 
 	// Gets written into during clustering, then is used to update 'clusters' at the end.
 	__hypermatrix__<N_CENTER, Dhv, hvtype> clusters_temp = __hetero_hdc_hypermatrix<N_CENTER, Dhv, hvtype>();
-	hvtype* clusters_temp_buffer = new hvtype[N_CENTER * Dhv];
 
 	// Temporarily store scores, allows us to split score calcuation into a separte task.
 
 
-	__hypervector__<Dhv, SCORES_TYPE> scores = __hetero_hdc_hypervector<Dhv, SCORES_TYPE>();
 	SCORES_TYPE* scores_buffer = new SCORES_TYPE[N_CENTER];
 	size_t scores_size = N_CENTER * sizeof(SCORES_TYPE);
 
