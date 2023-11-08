@@ -360,15 +360,7 @@ int main(int argc, char** argv)
 			#endif
 		} 
 
-		std::cout << "Printing 23rd cluster " << std::endl;
-		for (int i = 0; i < N_CENTER; i++) {
-			if (i == 23) {
-				__hypervector__<Dhv, hvtype> cluster_temp = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, hvtype>(clusters, N_CENTER, Dhv, i);
-				std::cout << i << " ";
-				print_hv<Dhv, hvtype>(cluster_temp);
-			}
-			
-		}
+		
 	}
 
 

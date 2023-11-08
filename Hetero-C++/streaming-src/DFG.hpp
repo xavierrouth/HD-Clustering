@@ -11,7 +11,12 @@
 #undef K
 
 typedef int binary;
+
+#ifdef ACCEL
+typedef int16_t hvtype;
+#else
 typedef float hvtype;
+#endif
 
 
 #ifdef HAMMING_DIST
@@ -189,7 +194,9 @@ void __attribute__ ((noinline)) clustering_node(/* Input Buffers: 3*/
     #ifdef HAMMING_DIST
     *scores_ptr =  __hetero_hdc_hamming_distance<K, D, hvtype>(encoded_hv, clusters);
     #else
+#ifndef ACCEL
     *scores_ptr = __hetero_hdc_cossim<K, D, hvtype>(encoded_hv, clusters);
+#endif
     #endif
 
    __hetero_task_end(task1);
@@ -203,7 +210,7 @@ void __attribute__ ((noinline)) clustering_node(/* Input Buffers: 3*/
     );
 
     
-    __hypervector__<K, hvtype> scores = *scores_ptr;
+    __hypervector__<K, SCORES_TYPE> scores = *scores_ptr;
     int max_idx = 0;
 
     // IF using hamming distance:
@@ -422,18 +429,22 @@ void root_node( /* Input buffers: 4*/
             );
 
     __hetero_hdc_inference(
-            18,
+            /* Num Formal Parameters */ 18,
             (void*) encoding_and_inference_node<D, K, N_VEC, N_FEATURES>,
             rp_matrix_ptr, rp_matrix_size, 
             datapoint_vec_ptr,  datapoint_vec_size,
             clusters_ptr,  clusters_size, 
             labels,  labels_size,
-            temp_clusters_ptr,  temp_clusters_size, // ALSO AN OUTPUT
+            temp_clusters_ptr,  temp_clusters_size, 
             encoded_hv_ptr, encoded_hv_size, 
             scores_ptr, scores_size,
             update_hv_ptr,  update_hv_size,  
             labels_index, convergence_threshold 
             );
+
+
+    
+
 
     __hetero_task_end(inference_task);
 
@@ -558,7 +569,10 @@ void flattened_root( /* Input buffers: 4*/
 #ifdef HAMMING_DIST
         *scores_ptr =  __hetero_hdc_hamming_distance<K, D, hvtype>(encoded_hv, clusters);
 #else
+
+#ifndef ACCEL
         *scores_ptr = __hetero_hdc_cossim<K, D, hvtype>(encoded_hv, clusters);
+#endif
 #endif
 
 

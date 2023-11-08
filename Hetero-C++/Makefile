@@ -18,6 +18,48 @@ ifeq ($(RUN_AOC),1)
 endif
 
 # PARAMETERS := -DHPVM -DDEVICE=hpvm::CPU_TARGET
+#
+#
+#
+### ---------- ACCEL ---------------
+
+# Generate Executable
+host-accel: build/output.accel.ll
+	$(HPVM_INSTALL_DIR)/build/bin/clang++ -lm -lrt -lOpenCL -pthread accelerator_api/hpvm_interface.cpp -O2 $< -o $@ 
+#
+
+# Clang Frontend to IR
+build/host.accel.ll: streaming-src/host.cpp
+	$(HPVM_BIN)/clang++ -DHPVM -DDEVICE=hpvm::CPU_TARGET $(CFLAGS) -DACCEL $(INCLUDES) -S -emit-llvm $^ -o $@ 
+#$HPVM_BIN/clang++ -O1 -I$OPENCL_PATH/include/CL -L$OPENCL_LIB_PATH -I$HPVM_ROOT/projects/hetero-c++/test/include/ -lm -lrt -pthread -lOpenCL  $INCLUDE_FLAG -fenable-matrix    $PREFIX.cpp -S -emit-llvm -o $PREFIX.ll
+
+# GenHPVM for HDC only and mem2reg
+build/hpvm.genhdc.accel.ll: build/host.accel.ll
+	$(HPVM_BIN)/opt -mem2reg -enable-new-pm=0 -load $(HPVM_LIB)/HPVMGenHPVM.so -genhpvm -hpvm-hdc-only $< -S -o $@
+# $OPT -mem2reg -enable-new-pm=0 -load $HPVM_LIB/HPVMGenHPVM.so -genhpvm  -hpvm-hdc-only $PREFIX.ll -S -o $PREFIX.genhdc.hpvm.ll
+
+# Lower HDC Intrinsics
+build/hdc.lowered.accel.ll: build/hpvm.genhdc.accel.ll #hpvm. # -enable-hcc
+	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/LLVMHPVMHDC.so -vector-block-dim=1 -lower-hdc -compile-accel -dce -simplifycfg $< -S -o $@ 
+	
+# HCC -> HPVM
+build/hpvmc.accel.ll: build/hdc.lowered.accel.ll
+	$(HPVM_BIN)/hcc $< -declsfile $(HPVM_DECLS_FILE) -sanitise-funcs --dot-dfg  -S -o $@
+	$(HPVM_BIN)/opt $@ -dce -S -o $@
+
+# GenHPVM for the HPVM IR
+build/hpvm.accel.ll: build/hpvmc.accel.ll
+	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/HPVMGenHPVM.so -dce -mem2reg -genhpvm $< -S -o $@
+
+# Other HPVM Passes
+build/hpvmcompiled.accel.ll: build/hpvm.accel.ll
+	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/HPVMBuildDFG.so -load $(HPVM_LIB)/HPVMDFG2LLVM_CPU.so -load $(HPVM_LIB)/HPVMClearDFG.so -load $(HPVM_LIB)/HPVMDFGTransformPasses.so -dfg2llvm-cpu -clearDFG -hpvm-timers-cpu $< -S -o $@
+
+
+# LINK HPVM RT and DCE
+build/output.accel.ll: build/hpvmcompiled.accel.ll # build/cpu_test.hpvmcompiled.ll
+	$(HPVM_INSTALL_DIR)/build/bin/llvm-link $< $(HPVM_RT) -S -o $@ 
+	$(HPVM_INSTALL_DIR)/build/bin/opt -dce -globaldce $< -S -o $<
 
 ### ---------- CPU ---------------
 
@@ -139,4 +181,4 @@ build/output.fpga.ll: build/hpvm.host.fpga.ll
 .PHONY: clean
 
 clean:
-	rm -rf *.dot build/*.ll build/* host-gpu host-cpu
+	rm -rf *.dot build/*.ll build/* host-gpu host-cpu host-accel
