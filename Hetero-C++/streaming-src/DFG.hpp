@@ -58,7 +58,7 @@ void  rp_encoding_node(/* Input Buffers: 2*/
         "inner_rp_encoding_task"
     );
 
-    
+    __hetero_hint(DEVICE);
     
     __hypervector__<D, hvtype> encoded_hv = __hetero_hdc_create_hypervector<D, hvtype>(0, (void*) zero_hv<hvtype>);
     *output_hv_ptr = encoded_hv;
@@ -103,6 +103,7 @@ void  rp_encoding_node_copy(/* Input Buffers: 2*/
         "inner_rp_encoding_copy_task"
     );
 
+    __hetero_hint(DEVICE);
 
     __hypervector__<D, hvtype> encoded_hv = __hetero_hdc_create_hypervector<D, hvtype>(0, (void*) zero_hv<hvtype>);
     *output_hv_ptr = encoded_hv;
@@ -185,6 +186,7 @@ void __attribute__ ((noinline)) clustering_node(/* Input Buffers: 3*/
         /* Output Buffers: 1*/ 1,  scores_ptr, scores_size, "clustering_scoring_task"
     );
 
+    __hetero_hint(DEVICE);
 
     __hypervector__<D, hvtype> encoded_hv = *encoded_hv_ptr;
     __hypermatrix__<K, D, hvtype> clusters = *clusters_ptr;
@@ -209,6 +211,7 @@ void __attribute__ ((noinline)) clustering_node(/* Input Buffers: 3*/
         /* Output Buffers: 1*/ 2, encoded_hv_ptr, encoded_hv_size, labels, labels_size, "find_score_and_label_task"
     );
 
+    __hetero_hint(DEVICE);
     
     __hypervector__<K, SCORES_TYPE> scores = *scores_ptr;
     int max_idx = 0;
@@ -285,6 +288,7 @@ void gen_rp_matrix(/* Input Buffers*/
          shifted_matrix,   shifted_matrix_size,
          "gen_shifted_matrix_task");
 
+    __hetero_hint(DEVICE);
 
     //std::cout << "Gen Shifted Task Begin" <<std::endl;
 	// Each row is just a wrap shift of the seed.
@@ -310,6 +314,8 @@ void gen_rp_matrix(/* Input Buffers*/
          /* Num Outputs */ 1,
          transposed_matrix,   transposed_matrix_size,
          "gen_tranpose_task");
+
+    __hetero_hint(DEVICE);
 
     //std::cout << "Transpose Begin" <<std::endl;
 	 *transposed_matrix = __hetero_hdc_matrix_transpose<N_FEATURES, D, hvtype>(*shifted_matrix, N_FEATURES, D);
@@ -462,6 +468,7 @@ void root_node( /* Input buffers: 4*/
         "update_task"  
     );
 
+    __hetero_hint(DEVICE);
     {
 
         *update_hv_ptr =  __hetero_hdc_get_matrix_row<K, D, hvtype>(*temp_clusters_ptr, K, D, *labels);
