@@ -201,6 +201,7 @@ int main(int argc, char** argv)
 	hvtype* shifted_buffer = new hvtype[N_FEAT * Dhv];
 	hvtype* row_buffer = new hvtype[Dhv];
 
+	auto gen_rp_matrix_t_start = std::chrono::high_resolution_clock::now();
     void* GenRPMatDAG = __hetero_launch(
         (void*) gen_rp_matrix<Dhv,  N_FEAT>,
         4,
@@ -215,6 +216,9 @@ int main(int argc, char** argv)
     );
 
     __hetero_wait(GenRPMatDAG);
+	auto gen_rp_matrix_t_elapsed = std::chrono::high_resolution_clock::now() - gen_rp_matrix_t_start;
+	long gen_rp_matrix_mSec = std::chrono::duration_cast<std::chrono::milliseconds>(gen_rp_matrix_t_elapsed).count();
+	std::cout << "gen_rp_matrix: " << gen_rp_matrix_mSec << " mSec" << std::endl;
 
     free(shifted_buffer);
     free(row_buffer);
@@ -246,6 +250,7 @@ int main(int argc, char** argv)
 
 	// Initialize cluster hvs.
 	std::cout << "Init cluster hvs:" << std::endl;
+	auto InitialEncodingDAG_t_start = std::chrono::high_resolution_clock::now();
 	for (int k = 0; k < N_CENTER; k++) {
 		__hypervector__<N_FEAT, hvtype> datapoint_hv = __hetero_hdc_create_hypervector<N_FEAT, hvtype>(1, (void*) initialize_hv<hvtype>, input_vectors + k * N_FEAT_PAD);
 		//hvtype* datapoint_hv_buffer = new hvtype[N_FEAT];
@@ -279,6 +284,9 @@ int main(int argc, char** argv)
 		__hetero_hdc_set_matrix_row<N_CENTER, Dhv, hvtype>(clusters, cluster, k);
 		__hypervector__<Dhv, hvtype> cluster_temp = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, hvtype>(clusters, N_CENTER, Dhv, k);
 	}
+	auto InitialEncodingDAG_t_elapsed = std::chrono::high_resolution_clock::now() - InitialEncodingDAG_t_start;
+	long InitialEncodingDAG_mSec = std::chrono::duration_cast<std::chrono::milliseconds>(InitialEncodingDAG_t_elapsed).count();
+	std::cout << "InitialEncodingDAG: " << InitialEncodingDAG_mSec << " mSec" << std::endl;
 
 
 	std::cout << "\nDone init cluster hvs:" << std::endl;
@@ -291,6 +299,7 @@ int main(int argc, char** argv)
 	}
 	#endif
 
+	auto flattened_root_t_start = std::chrono::high_resolution_clock::now();
     int label_index = 1;
 	for (int i = 0; i < EPOCH; i++) {
 		// Can we normalize the hypervectors here or do we have to do that in the DFG.
@@ -362,6 +371,9 @@ int main(int argc, char** argv)
 
 		
 	}
+	auto flattened_root_t_elapsed = std::chrono::high_resolution_clock::now() - flattened_root_t_start;
+	long flattened_root_mSec = std::chrono::duration_cast<std::chrono::milliseconds>(flattened_root_t_elapsed).count();
+	std::cout << "flattened_root: " << flattened_root_mSec << " mSec" << std::endl;
 
 
 	t_elapsed = std::chrono::high_resolution_clock::now() - t_start;
