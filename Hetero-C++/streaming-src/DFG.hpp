@@ -4,7 +4,7 @@
 #include <heterocc.h>
 #include <iostream>
 
-//#define HAMMING_DIST
+#define HAMMING_DIST
 
 #undef D
 #undef N_FEATURES
@@ -71,7 +71,7 @@ void  rp_encoding_node(/* Input Buffers: 2*/
     *output_hv_ptr = encoded_hv;
     
     #ifdef HAMMING_DIST
-    __hypervector__<D, int> bipolar_encoded_hv = __hetero_hdc_sign<D, int>(encoded_hv);
+    __hypervector__<D, hvtype> bipolar_encoded_hv = __hetero_hdc_sign<D, hvtype>(encoded_hv);
     *output_hv_ptr = bipolar_encoded_hv;
     #endif
 
@@ -117,7 +117,7 @@ void  rp_encoding_node_copy(/* Input Buffers: 2*/
     
 
     #ifdef HAMMING_DIST
-    __hypervector__<D, int> bipolar_encoded_hv = __hetero_hdc_sign<D, int>(encoded_hv);
+    __hypervector__<D, hvtype> bipolar_encoded_hv = __hetero_hdc_sign<D, hvtype>(encoded_hv);
     *output_hv_ptr = bipolar_encoded_hv;
     #endif
 
@@ -548,7 +548,7 @@ void flattened_root( /* Input buffers: 4*/
 
 
     #ifdef HAMMING_DIST
-    __hypervector__<D, int> bipolar_encoded_hv = __hetero_hdc_sign<D, int>(encoded_hv);
+    __hypervector__<D, hvtype> bipolar_encoded_hv = __hetero_hdc_sign<D, hvtype>(encoded_hv);
     *encoded_hv_ptr = bipolar_encoded_hv;
     #endif
 

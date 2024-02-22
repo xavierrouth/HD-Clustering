@@ -85,7 +85,9 @@ T initialize_rp_seed(size_t loop_index_var) {
 
 int main(int argc, char** argv)
 {
+#ifndef NODFG
 	__hpvm__init();
+#endif
 
 	auto t_start = std::chrono::high_resolution_clock::now();
 	std::cout << "Main Starting" << std::endl;
@@ -202,6 +204,7 @@ int main(int argc, char** argv)
 	hvtype* row_buffer = new hvtype[Dhv];
 
 	auto gen_rp_matrix_t_start = std::chrono::high_resolution_clock::now();
+#ifndef NODFG
     void* GenRPMatDAG = __hetero_launch(
         (void*) gen_rp_matrix<Dhv,  N_FEAT>,
         4,
@@ -216,12 +219,20 @@ int main(int argc, char** argv)
     );
 
     __hetero_wait(GenRPMatDAG);
+#else
+    gen_rp_matrix<Dhv, N_FEAT>(
+        &rp_seed, sizeof(hvtype) * Dhv,
+        (__hypervector__<Dhv, hvtype> *) row_buffer, sizeof(hvtype) * Dhv,
+        (__hypermatrix__<N_FEAT, Dhv, hvtype> *) shifted_buffer, sizeof(hvtype) * (N_FEAT * Dhv),
+        (__hypermatrix__<Dhv, N_FEAT, hvtype> *) rp_matrix_buffer, sizeof(hvtype) * (N_FEAT * Dhv)
+    );
+#endif
 	auto gen_rp_matrix_t_elapsed = std::chrono::high_resolution_clock::now() - gen_rp_matrix_t_start;
 	long gen_rp_matrix_mSec = std::chrono::duration_cast<std::chrono::milliseconds>(gen_rp_matrix_t_elapsed).count();
 	std::cout << "gen_rp_matrix: " << gen_rp_matrix_mSec << " mSec" << std::endl;
 
-    free(shifted_buffer);
-    free(row_buffer);
+    delete[] shifted_buffer;
+    delete[] row_buffer;
 
 
 
@@ -257,6 +268,7 @@ int main(int argc, char** argv)
 		//*((__hypervector__<N_FEAT, hvtype> *) datapoint_hv_buffer) = datapoint_hv;
 		// Encode the first N_CENTER hypervectors and set them to be the clusters.
 
+#ifndef NODFG
 		void* initialize_DFG = __hetero_launch(
 #if 1
 			(void*) InitialEncodingDAG<Dhv, N_FEAT>,
@@ -275,6 +287,13 @@ int main(int argc, char** argv)
 		);
 
 		__hetero_wait(initialize_DFG);
+#else
+                InitialEncodingDAG<Dhv, N_FEAT>(
+		    (__hypermatrix__<Dhv, N_FEAT, hvtype> *) rp_matrix_buffer, rp_matrix_size,
+		    &datapoint_hv, input_vector_size,
+		    &cluster, cluster_size
+                );
+#endif
 
 
 		// rp_encoding_node encodes a single cluster, which we then have to assign to our big group of clusters in cluster[s].
@@ -309,6 +328,7 @@ int main(int argc, char** argv)
 			__hypervector__<N_FEAT, hvtype> datapoint_hv = __hetero_hdc_create_hypervector<N_FEAT, hvtype>(1, (void*) initialize_hv<hvtype>, input_vectors + j * N_FEAT_PAD);
 
 			// Root node is: Encoding -> Clustering for a single HV.
+#ifndef NODFG
 			void *DFG = __hetero_launch(
 #ifdef FPGA
 				(void*) flattened_root<Dhv, N_CENTER, N_SAMPLE, N_FEAT>,
@@ -347,6 +367,19 @@ int main(int argc, char** argv)
 				&clusters_temp, clusters_size
 			);
 			__hetero_wait(DFG); 
+#else
+                    root_node<Dhv, N_CENTER, N_SAMPLE, N_FEAT>(
+                        (__hypermatrix__<Dhv, N_FEAT, hvtype> *) rp_matrix_buffer, rp_matrix_size,
+                        &datapoint_hv, input_vector_size,
+                        &clusters, clusters_size,
+                        &clusters_temp, clusters_size,
+                        (__hypervector__<Dhv, hvtype> *) encoded_hv_buffer, encoded_hv_size,
+                        (__hypervector__<N_CENTER, hvtype> *) scores_buffer, scores_size,
+                        (__hypervector__<Dhv, hvtype> *) update_hv_ptr, update_hv_size,
+                        j, 0, 
+                        labels, labels_size
+                    );
+#endif
 
 			//std::cout << "after root launch" << std::endl;
 		
@@ -388,7 +421,9 @@ int main(int argc, char** argv)
 	for(int i = 0; i < N_SAMPLE; i++){
 		myfile << y_data[i] << " " << labels[i] << std::endl;
 	}
+#ifndef NODFG
 	__hpvm__cleanup();
+#endif
 	return 0;
 }
 
