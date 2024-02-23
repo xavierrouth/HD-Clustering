@@ -15,7 +15,8 @@ typedef int binary;
 #ifdef ACCEL
 typedef int16_t hvtype;
 #else
-typedef float hvtype;
+//typedef float hvtype;
+typedef int16_t hvtype;
 #endif
 
 
@@ -48,6 +49,7 @@ void  rp_encoding_node(/* Input Buffers: 2*/
         /* Output Buffers: 1*/
         __hypervector__<D, hvtype>* output_hv_ptr, size_t output_hv_size) { // __hypervector__<D, binary>
     
+#ifndef NODFG
     void* section = __hetero_section_begin();
 
 
@@ -59,6 +61,7 @@ void  rp_encoding_node(/* Input Buffers: 2*/
     );
 
     __hetero_hint(DEVICE);
+#endif
     
     __hypervector__<D, hvtype> encoded_hv = __hetero_hdc_create_hypervector<D, hvtype>(0, (void*) zero_hv<hvtype>);
     *output_hv_ptr = encoded_hv;
@@ -76,9 +79,11 @@ void  rp_encoding_node(/* Input Buffers: 2*/
     #endif
 
 
+#ifndef NODFG
     __hetero_task_end(task); 
 
     __hetero_section_end(section);
+#endif
     return;
 }
 
@@ -92,6 +97,7 @@ void  rp_encoding_node_copy(/* Input Buffers: 2*/
         /* Output Buffers: 1*/
         __hypervector__<D, hvtype>* output_hv_ptr, size_t output_hv_size) {
     
+#ifndef NODFG
     void* section = __hetero_section_begin();
 
 
@@ -104,6 +110,7 @@ void  rp_encoding_node_copy(/* Input Buffers: 2*/
     );
 
     __hetero_hint(DEVICE);
+#endif
 
     __hypervector__<D, hvtype> encoded_hv = __hetero_hdc_create_hypervector<D, hvtype>(0, (void*) zero_hv<hvtype>);
     *output_hv_ptr = encoded_hv;
@@ -122,9 +129,11 @@ void  rp_encoding_node_copy(/* Input Buffers: 2*/
     #endif
 
 
+#ifndef NODFG
     __hetero_task_end(task); 
 
     __hetero_section_end(section);
+#endif
     return;
 }
 
@@ -138,6 +147,7 @@ void  InitialEncodingDAG(/* Input Buffers: 2*/
         __hypervector__<D, hvtype>* output_hv_ptr, size_t output_hv_size) {
 
     
+#ifndef NODFG
     void* section = __hetero_section_begin();
 
     void* task = __hetero_task_begin(
@@ -146,12 +156,15 @@ void  InitialEncodingDAG(/* Input Buffers: 2*/
         /* Output Buffers: 1*/ 1, output_hv_ptr, output_hv_size,
         "initial_encoding_wrapper"
     );
+#endif
 
     // Specifies that the following node is performing an HDC Encoding step
     __hetero_hdc_encoding(6, (void*)  rp_encoding_node_copy<D, N_FEATURES>, rp_matrix_ptr, rp_matrix_size, input_datapoint_ptr, input_datapoint_size, output_hv_ptr, output_hv_size);
 
+#ifndef NODFG
     __hetero_task_end(task); 
     __hetero_section_end(section);
+#endif
 }
 
 // clustering_node is the hetero-c++ version of searchUnit from the original FPGA code.
@@ -174,19 +187,23 @@ void __attribute__ ((noinline)) clustering_node(/* Input Buffers: 3*/
         /* Output Buffers: 1*/
         int* labels, size_t labels_size) { // Mapping of HVs to Clusters. int[N_VEC]
 
+#ifndef NODFG
     void* section = __hetero_section_begin();
+#endif
 
 
     { // Scoping hack in order to have 'scores' defined in each task.
 
 
     
+#ifndef NODFG
     void* task1 = __hetero_task_begin(
         /* Input Buffers: 4*/ 3, encoded_hv_ptr, encoded_hv_size, clusters_ptr, clusters_size, scores_ptr, scores_size, 
         /* Output Buffers: 1*/ 1,  scores_ptr, scores_size, "clustering_scoring_task"
     );
 
     __hetero_hint(DEVICE);
+#endif
 
     __hypervector__<D, hvtype> encoded_hv = *encoded_hv_ptr;
     __hypermatrix__<K, D, hvtype> clusters = *clusters_ptr;
@@ -201,10 +218,13 @@ void __attribute__ ((noinline)) clustering_node(/* Input Buffers: 3*/
 #endif
     #endif
 
+#ifndef NODFG
    __hetero_task_end(task1);
+#endif
     }
     
     {
+#ifndef NODFG
    void* task2 = __hetero_task_begin(
         /* Input Buffers: 1*/ 4, encoded_hv_ptr, encoded_hv_size, scores_ptr, scores_size, labels, labels_size,
         /* paramters: 1*/      encoded_hv_idx,
@@ -212,6 +232,7 @@ void __attribute__ ((noinline)) clustering_node(/* Input Buffers: 3*/
     );
 
     __hetero_hint(DEVICE);
+#endif
     
     __hypervector__<K, SCORES_TYPE> scores = *scores_ptr;
     int max_idx = 0;
@@ -242,9 +263,13 @@ void __attribute__ ((noinline)) clustering_node(/* Input Buffers: 3*/
 
 
 
+#ifndef NODFG
     __hetero_task_end(task2);
+#endif
     }
+#ifndef NODFG
     __hetero_section_end(section);
+#endif
     return;
 }
 
@@ -261,6 +286,7 @@ void gen_rp_matrix(/* Input Buffers*/
         ){
 
 
+#ifndef NODFG
     void* root_section = __hetero_section_begin();
 
 
@@ -276,9 +302,11 @@ void gen_rp_matrix(/* Input Buffers*/
     );
 
     void* wrapper_section = __hetero_section_begin();
+#endif
 
 
     {
+#ifndef NODFG
     void* gen_shifted_task = __hetero_task_begin(
          /* Num Inputs */ 3,
          rp_seed_vector,   rp_seed_vector_size,
@@ -289,6 +317,7 @@ void gen_rp_matrix(/* Input Buffers*/
          "gen_shifted_matrix_task");
 
     __hetero_hint(DEVICE);
+#endif
 
     //std::cout << "Gen Shifted Task Begin" <<std::endl;
 	// Each row is just a wrap shift of the seed.
@@ -303,10 +332,13 @@ void gen_rp_matrix(/* Input Buffers*/
     //std::cout << "Gen Shifted Task End" <<std::endl;
 
 
+#ifndef NODFG
    __hetero_task_end(gen_shifted_task); 
+#endif
    }
 
    {
+#ifndef NODFG
     void* transpose_task = __hetero_task_begin(
          /* Num Inputs */ 2,
          shifted_matrix,   shifted_matrix_size,
@@ -316,21 +348,26 @@ void gen_rp_matrix(/* Input Buffers*/
          "gen_tranpose_task");
 
     __hetero_hint(DEVICE);
+#endif
 
     //std::cout << "Transpose Begin" <<std::endl;
 	 *transposed_matrix = __hetero_hdc_matrix_transpose<N_FEATURES, D, hvtype>(*shifted_matrix, N_FEATURES, D);
 
     //std::cout << "Transpose Task End" <<std::endl;
 
+#ifndef NODFG
    __hetero_task_end(transpose_task); 
+#endif
    }
 
 
+#ifndef NODFG
    __hetero_section_end(wrapper_section);
 
    __hetero_task_end(root_task); 
 
    __hetero_section_end(root_section);
+#endif
 }
 
 
@@ -353,6 +390,7 @@ int* labels, size_t labels_size,
                 int labels_index, int convergence_threshold
                 ){
 
+#ifndef NODFG
     void* root_section = __hetero_section_begin();
 
 
@@ -364,9 +402,11 @@ int* labels, size_t labels_size,
         /* Output Buffers: 1 */ 1, encoded_hv_ptr, encoded_hv_size,
         "encoding_task"  
     );
+#endif
 
     rp_encoding_node<D, N_FEATURES>(rp_matrix_ptr, rp_matrix_size, datapoint_vec_ptr, datapoint_vec_size, encoded_hv_ptr, encoded_hv_size);
 
+#ifndef NODFG
     __hetero_task_end(encoding_task);
 
     void* clustering_task = __hetero_task_begin(
@@ -382,12 +422,15 @@ int* labels, size_t labels_size,
  labels, labels_size, 
         "clustering_task"  
     );
+#endif
 
     clustering_node<D, K, N_VEC>(encoded_hv_ptr, encoded_hv_size, clusters_ptr, clusters_size, temp_clusters_ptr, temp_clusters_size, scores_ptr, scores_size,  update_hv_ptr, update_hv_size, labels_index, labels, labels_size); 
 
+#ifndef NODFG
     __hetero_task_end(clustering_task);
 
     __hetero_section_end(root_section);
+#endif
 
 }
 
@@ -411,6 +454,7 @@ void root_node( /* Input buffers: 4*/
                 /* Output Buffers: 2*/
                 int* labels, size_t labels_size){
 
+#ifndef NODFG
     void* root_section = __hetero_section_begin();
 
 
@@ -433,6 +477,7 @@ void root_node( /* Input buffers: 4*/
             labels,  labels_size,
             "inference_task"  
             );
+#endif
 
     __hetero_hdc_inference(
             /* Num Formal Parameters */ 18,
@@ -452,6 +497,7 @@ void root_node( /* Input buffers: 4*/
     
 
 
+#ifndef NODFG
     __hetero_task_end(inference_task);
 
 
@@ -469,6 +515,7 @@ void root_node( /* Input buffers: 4*/
     );
 
     __hetero_hint(DEVICE);
+#endif
     {
 
         *update_hv_ptr =  __hetero_hdc_get_matrix_row<K, D, hvtype>(*temp_clusters_ptr, K, D, *labels);
@@ -477,9 +524,11 @@ void root_node( /* Input buffers: 4*/
 
     }
 
+#ifndef NODFG
     __hetero_task_end(update_task);
 
     __hetero_section_end(root_section);
+#endif
     return;
 }
 
@@ -503,6 +552,7 @@ void flattened_root( /* Input buffers: 4*/
                 /* Output Buffers: 2*/
                 int* labels, size_t labels_size){
 
+#ifndef NODFG
     void* root_section = __hetero_section_begin();
 
     void* root_task = __hetero_task_begin(
@@ -534,9 +584,12 @@ void flattened_root( /* Input buffers: 4*/
         /* Output Buffers: 1*/ 1, encoded_hv_ptr, encoded_hv_size,
         "flattened_encoding_task"
     );
+#endif
     {
 
+#ifndef NODFG
         __hetero_hint(DEVICE);
+#endif
 
 
         // Initialize matrix state with 0
@@ -554,6 +607,7 @@ void flattened_root( /* Input buffers: 4*/
 
 
     }
+#ifndef NODFG
     __hetero_task_end(encoding_task); 
 
 
@@ -563,10 +617,13 @@ void flattened_root( /* Input buffers: 4*/
 				 scores_ptr, scores_size, 
         /* Output Buffers: 1*/ 1,  scores_ptr, scores_size, "flattened_clustering_scoring_task"
     );
+#endif
     {
 
         //std::cout << "clustering task 1" << std::endl;
+#ifndef NODFG
         __hetero_hint(DEVICE);
+#endif
 
         __hypervector__<D, hvtype> encoded_hv = *encoded_hv_ptr;
         __hypermatrix__<K, D, hvtype> clusters = *clusters_ptr;
@@ -584,6 +641,7 @@ void flattened_root( /* Input buffers: 4*/
 
 
     }
+#ifndef NODFG
    __hetero_task_end(clustering_task_1);
 
    void* clustering_task_2 = __hetero_task_begin(
@@ -596,10 +654,13 @@ void flattened_root( /* Input buffers: 4*/
            /* Output Buffers: 2*/2, temp_clusters_ptr, temp_clusters_size, 
 				    labels, labels_size, "flattened_find_score_and_update_task"
            );
+#endif
    {
 
 
+#ifndef NODFG
        __hetero_hint(DEVICE);
+#endif
        //std::cout << "clustering task 2" << std::endl;
        __hypervector__<K, hvtype> scores = *scores_ptr;
        int max_idx = 0;
@@ -635,6 +696,7 @@ void flattened_root( /* Input buffers: 4*/
 
 
    }
+#ifndef NODFG
    __hetero_task_end(clustering_task_2);
 
    __hetero_section_end(fpga_section);
@@ -642,4 +704,5 @@ void flattened_root( /* Input buffers: 4*/
    __hetero_task_end(root_task); 
 
    __hetero_section_end(root_section);
+#endif
 }

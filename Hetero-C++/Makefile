@@ -24,8 +24,8 @@ host-accel: build/hdc.lowered.accel.ll accelerator_api/hpvm_interface.cpp accele
 	$(HPVM_INSTALL_DIR)/build/bin/clang++ -lm -lrt -g -Ofast accelerator_api/hpvm_interface.cpp $< -o $@ 
 
 # Clang Frontend to IR
-build/host.accel.ll: streaming-src/host.cpp
-	$(HPVM_BIN)/clang++ -DNODFG -DACCEL -DDEVICE=hpvm::CPU_TARGET $(CFLAGS) $(INCLUDES) -S -emit-llvm $^ -o $@ 
+build/host.accel.ll: streaming-src/host.cpp streaming-src/host.h streaming-src/DFG.hpp
+	$(HPVM_BIN)/clang++ -DNODFG -DACCEL -DDEVICE=hpvm::CPU_TARGET $(CFLAGS) $(INCLUDES) -S -emit-llvm $< -o $@ 
 #$HPVM_BIN/clang++ -O1 -I$OPENCL_PATH/include/CL -L$OPENCL_LIB_PATH -I$HPVM_ROOT/projects/hetero-c++/test/include/ -lm -lrt -pthread -lOpenCL  $INCLUDE_FLAG -fenable-matrix    $PREFIX.cpp -S -emit-llvm -o $PREFIX.ll
 
 # GenHPVM for HDC only and mem2reg
