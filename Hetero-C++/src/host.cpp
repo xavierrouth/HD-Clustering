@@ -8,6 +8,19 @@
 #include "host.h"
 #include <vector>
 #include <cassert>
+#include <cmath>
+
+
+#define HAMMING_DIST
+#define OFFLOAD_RP_GEN
+
+
+#ifdef HAMMING_DIST
+#define SCORES_TYPE hvtype
+#else
+#define SCORES_TYPE float
+#endif
+
 
 #define DUMP(vec, suffix) {\
   FILE *f = fopen("dump/" #vec suffix, "w");\
@@ -16,7 +29,9 @@
 }
 
 template <int N, typename elemTy>
-void print_hv(__hypervector__<N, elemTy> hv) {
+void inline print_hv(__hypervector__<N, elemTy> hv) {
+    // TEMPORARILY DISABLED AS THIS CALL BREAKS Code
+    return;
     std::cout << "[";
     for (int i = 0; i < N-1; i++) {
         std::cout << hv[0][i] << ", ";
@@ -37,13 +52,55 @@ void datasetBinaryRead(std::vector<int> &data, std::string path){
 	}
 	file_.close();
 }
+template <typename T>
+T initialize_hv(T* datapoint_vector, size_t loop_index_var) {
+	//std::cout << ((float*)datapoint_vector)[loop_index_var] << "\n";
+	return datapoint_vector[loop_index_var];
+}
+
+template <typename T>
+T initialize_rp_seed(size_t loop_index_var) {
+	int i = loop_index_var / 32;
+	int j = loop_index_var % 32;
+
+	//std::cout << i << " " << j << "\n";
+	long double temp = log2(i+2.5) * pow(2, 31);
+	long long int temp2 = (long long int)(temp);
+	temp2 = temp2 % 2147483648;
+	//temp2 = temp2 % int(pow(2, 31));
+	//2147483648;
+
+	int ele = temp2 & (0x01 << j); //temp2 && (0x01 << j);
+
+	//std::cout << ele << "\n";
+
+	if (ele) {
+		return (T) 1;
+	}
+	else {
+		return (T) -1;
+	}
+}
+
 
 int main(int argc, char** argv)
 {
+#ifndef NODFG
+	__hpvm__init();
+#endif
+
 	auto t_start = std::chrono::high_resolution_clock::now();
 	std::cout << "Main Starting" << std::endl;
 
 	srand(time(NULL));
+
+
+
+
+
+
+    assert(argc == 2 && "Expected parameter");
+	int EPOCH = std::atoi(argv[1]);
    
 	std::vector<int> X_data;
 	std::vector<int> y_data;
@@ -80,11 +137,13 @@ int main(int argc, char** argv)
 	}	
 	
 	assert(N_SAMPLE == y_data.size());
-	 
-	int* input_vector = X_data.data();
-	size_t input_vector_size = N_FEAT * sizeof(int); 
+	std::vector<hvtype> floatVec(X_data.begin(), X_data.end());
+	hvtype* input_vectors = floatVec.data();
+	// N_FEAT is number of entries per vector
+	size_t input_vector_size = N_FEAT * sizeof(hvtype); // Size of a single vector
 
 	int labels[N_SAMPLE]; // Does this need to be malloced?
+	// N_SAMPLE is number of input vectors
 	size_t labels_size = N_SAMPLE * sizeof(int);
 
 	auto t_elapsed = std::chrono::high_resolution_clock::now() - t_start;
@@ -94,122 +153,267 @@ int main(int argc, char** argv)
 
 	t_start = std::chrono::high_resolution_clock::now();
 
-	// Not inputs or outputs to computation:
-	// Do these need to be malloced?
-	__hypervector__<Dhv, int> encoded_hv;
-	__hypervector__<Dhv, int>* encoded_hv_ptr = &encoded_hv;
-	size_t encoded_hv_size = Dhv * sizeof(int);
+	// Host allocated memory 
+	hvtype* encoded_hv_buffer = new hvtype[Dhv];
+	size_t encoded_hv_size = Dhv * sizeof(hvtype);
 
-	__hypermatrix__<N_CENTER, Dhv, int> clusters;
-	__hypermatrix__<N_CENTER, Dhv, int>* clusters_ptr = &clusters;
-	size_t clusters_size = N_CENTER * Dhv * sizeof(int);
 
-	__hypermatrix__<N_CENTER, Dhv, int> clusters_temp;
-	__hypermatrix__<N_CENTER, Dhv, int>* clusters_temp_ptr = &clusters_temp;
+	hvtype* update_hv_ptr = new hvtype[Dhv];
+	size_t update_hv_size = Dhv * sizeof(hvtype);
+	
+	// Used to store a temporary cluster for initializion
+	__hypervector__<Dhv, hvtype> cluster = __hetero_hdc_hypervector<Dhv, hvtype>();
+	size_t cluster_size = Dhv * sizeof(hvtype);
 
-	// Does this need to be malloced?
-	__hypermatrix__<N_FEAT, Dhv, int> rp_matrix;
-	__hypermatrix__<N_FEAT, Dhv, int>* rp_matrix_ptr = &rp_matrix;
-	size_t rp_matrix_size = N_FEAT * Dhv * sizeof(int);
+	// Read from during clustering, updated from clusters_temp.
+	__hypermatrix__<N_CENTER, Dhv, hvtype> clusters = __hetero_hdc_hypermatrix<N_CENTER, Dhv, hvtype>();
+	size_t clusters_size = N_CENTER * Dhv * sizeof(hvtype);
 
-	__hypervector__<Dhv, int> rp_seed;
-	std::cout << "Dimension over 32" << Dhv/32 << std::endl;
+	// Gets written into during clustering, then is used to update 'clusters' at the end.
+	__hypermatrix__<N_CENTER, Dhv, hvtype> clusters_temp = __hetero_hdc_hypermatrix<N_CENTER, Dhv, hvtype>();
+
+	// Temporarily store scores, allows us to split score calcuation into a separte task.
+
+
+	SCORES_TYPE* scores_buffer = new SCORES_TYPE[N_CENTER];
+	size_t scores_size = N_CENTER * sizeof(SCORES_TYPE);
+
+
+
+
+
+
+
+	size_t rp_matrix_size = N_FEAT * Dhv * sizeof(hvtype);
+
+
+	__hypervector__<Dhv, hvtype> rp_seed = __hetero_hdc_create_hypervector<Dhv, hvtype>(0, (void*) initialize_rp_seed<hvtype>);	
+
+	std::cout << "Dimension over 32: " << Dhv/32 << std::endl;
 	//We need a seed ID. To generate in a random yet determenistic (for later debug purposes) fashion, we use bits of log2 as some random stuff.
-	for(int i = 0; i < Dhv/32; i++){
-		
-        //long double temp = log2(i+2.5) * pow(2, 31);
-		//long long int temp2 = (long long int)(temp);
-		//temp2 = temp2 % 2147483648; //2^31
-		int temp = int(rand());
-		for (int j = 0; j < 32; j++) {
-			int ele = temp & (1 << j); //temp2 && (0x01 << j);
-			std::cout << ele << std::endl;
-			if (temp & (1 << j)) {
-				rp_seed[0][i * 32 + j] = 1;
-			}
-			else {
-				rp_seed[0][i * 32 + j] = -1;
-			}
-		}
-	}
-	print_hv<Dhv, int>(rp_seed);
+
+	std::cout << "Seed hv:\n";
 	std::cout << "After seed generation\n";
 
 	// Dhv needs to be greater than N_FEAT for the orthognality to hold.
 
-	// Generate the random projection matrix.
+#ifdef OFFLOAD_RP_GEN
+
+	hvtype* rp_matrix_buffer = new hvtype[N_FEAT * Dhv];
+	hvtype* shifted_buffer = new hvtype[N_FEAT * Dhv];
+	hvtype* row_buffer = new hvtype[Dhv];
+
+	auto gen_rp_matrix_t_start = std::chrono::high_resolution_clock::now();
+#ifndef NODFG
+    void* GenRPMatDAG = __hetero_launch(
+        (void*) gen_rp_matrix<Dhv,  N_FEAT>,
+        4,
+        /* Input Buffers: 3*/ 
+        &rp_seed, sizeof(hvtype) * Dhv,
+        row_buffer, sizeof(hvtype) * Dhv,
+        shifted_buffer, sizeof(hvtype) * (N_FEAT * Dhv),
+        rp_matrix_buffer, sizeof(hvtype) * (N_FEAT * Dhv),
+        /* Output Buffers: 1*/ 
+        1,
+        rp_matrix_buffer, sizeof(hvtype) * (N_FEAT * Dhv)
+    );
+
+    __hetero_wait(GenRPMatDAG);
+#else
+    gen_rp_matrix<Dhv, N_FEAT>(
+        &rp_seed, sizeof(hvtype) * Dhv,
+        (__hypervector__<Dhv, hvtype> *) row_buffer, sizeof(hvtype) * Dhv,
+        (__hypermatrix__<N_FEAT, Dhv, hvtype> *) shifted_buffer, sizeof(hvtype) * (N_FEAT * Dhv),
+        (__hypermatrix__<Dhv, N_FEAT, hvtype> *) rp_matrix_buffer, sizeof(hvtype) * (N_FEAT * Dhv)
+    );
+#endif
+	auto gen_rp_matrix_t_elapsed = std::chrono::high_resolution_clock::now() - gen_rp_matrix_t_start;
+	long gen_rp_matrix_mSec = std::chrono::duration_cast<std::chrono::milliseconds>(gen_rp_matrix_t_elapsed).count();
+	std::cout << "gen_rp_matrix: " << gen_rp_matrix_mSec << " mSec" << std::endl;
+
+    delete[] shifted_buffer;
+    delete[] row_buffer;
+
+
+
+    //rp_matrix =   *  (__hypermatrix__<Dhv, N_FEAT, hvtype>*) rp_matrix_buffer;
+
+#else
+	// Generate the random projection matrix. Dhv rows, N_FEAT cols, so Dhv x N_FEAT.
+	__hypervector__<Dhv, hvtype> row = __hetero_hdc_hypervector<Dhv, hvtype>();
+    __hypermatrix__<N_FEAT, Dhv, hvtype> rp_matrix_transpose = __hetero_hdc_hypermatrix<N_FEAT, Dhv, hvtype>();
+
+
+	// Each row is just a wrap shift of the seed.
 	for (int i = 0; i < N_FEAT; i++) {
-		__hypervector__<Dhv, int> temp = __hetero_hdc_wrap_shift<Dhv, int>(rp_seed,i);
-		
-		__hetero_hdc_set_matrix_row<N_FEAT, Dhv, int>(rp_matrix, temp, i);
-		//print_hv<Dhv, int>(temp);
+		row = __hetero_hdc_wrap_shift<Dhv, hvtype>(rp_seed, i);
+		__hetero_hdc_set_matrix_row<N_FEAT, Dhv, hvtype>(rp_matrix_transpose, row, i);
+	} 
+
+	// Now transpose in order to be able to multiply with input hv in DFG.
+	__hypermatrix__<Dhv, N_FEAT, hvtype> rp_matrix = __hetero_hdc_matrix_transpose<N_FEAT, Dhv, hvtype>(rp_matrix_transpose, N_FEAT, Dhv);
+
+    auto rp_matrix_buffer = &rp_matrix;
+#endif
+
+
+
+
+	// Initialize cluster hvs.
+	std::cout << "Init cluster hvs:" << std::endl;
+	auto InitialEncodingDAG_t_start = std::chrono::high_resolution_clock::now();
+	for (int k = 0; k < N_CENTER; k++) {
+		__hypervector__<N_FEAT, hvtype> datapoint_hv = __hetero_hdc_create_hypervector<N_FEAT, hvtype>(1, (void*) initialize_hv<hvtype>, input_vectors + k * N_FEAT_PAD);
+		//hvtype* datapoint_hv_buffer = new hvtype[N_FEAT];
+		//*((__hypervector__<N_FEAT, hvtype> *) datapoint_hv_buffer) = datapoint_hv;
+		// Encode the first N_CENTER hypervectors and set them to be the clusters.
+
+#ifndef NODFG
+		void* initialize_DFG = __hetero_launch(
+#if 1
+			(void*) InitialEncodingDAG<Dhv, N_FEAT>,
+#else
+			(void*) rp_encoding_node_copy<Dhv, N_FEAT>,
+#endif
+
+			2 + 1,
+			/* Input Buffers: 2*/ 
+            rp_matrix_buffer, rp_matrix_size,
+			&datapoint_hv, input_vector_size,
+			/* Output Buffers: 1*/ 
+			&cluster, cluster_size,  //false,
+			1,
+			&cluster, cluster_size //false
+		);
+
+		__hetero_wait(initialize_DFG);
+#else
+                InitialEncodingDAG<Dhv, N_FEAT>(
+		    (__hypermatrix__<Dhv, N_FEAT, hvtype> *) rp_matrix_buffer, rp_matrix_size,
+		    &datapoint_hv, input_vector_size,
+		    &cluster, cluster_size
+                );
+#endif
+
+
+		// rp_encoding_node encodes a single cluster, which we then have to assign to our big group of clusters in cluster[s].
+		// Note cluster vs clusters
+		std::cout <<" Cluter "<< k << "\n";
+        print_hv<Dhv, hvtype>(cluster);
+		__hetero_hdc_set_matrix_row<N_CENTER, Dhv, hvtype>(clusters, cluster, k);
+		__hypervector__<Dhv, hvtype> cluster_temp = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, hvtype>(clusters, N_CENTER, Dhv, k);
 	}
+	auto InitialEncodingDAG_t_elapsed = std::chrono::high_resolution_clock::now() - InitialEncodingDAG_t_start;
+	long InitialEncodingDAG_mSec = std::chrono::duration_cast<std::chrono::milliseconds>(InitialEncodingDAG_t_elapsed).count();
+	std::cout << "InitialEncodingDAG: " << InitialEncodingDAG_mSec << " mSec" << std::endl;
 
 
-#ifdef HPVM
+	std::cout << "\nDone init cluster hvs:" << std::endl;
 
-	// Do streaming.
-	
-	/***/
-	#if 1
+	#if DEBUG
+	for (int i = 0; i < N_CENTER; i++) {
+		__hypervector__<Dhv, hvtype> cluster_temp = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, hvtype>(clusters, N_CENTER, Dhv, i);
+		std::cout << i << " ";
+		print_hv<Dhv, hvtype>(cluster_temp);
+	}
+	#endif
+
+	auto flattened_root_t_start = std::chrono::high_resolution_clock::now();
+    int label_index = 1;
 	for (int i = 0; i < EPOCH; i++) {
-		// Is it valid to call __hetero_wait multiple times?
 		// Can we normalize the hypervectors here or do we have to do that in the DFG.
+		std::cout << "Epoch: #" << i << std::endl;
 		for (int j = 0; j < N_SAMPLE; j++) {
-			// Encoding -> Clustering for a single HV.
+
+			__hypervector__<N_FEAT, hvtype> datapoint_hv = __hetero_hdc_create_hypervector<N_FEAT, hvtype>(1, (void*) initialize_hv<hvtype>, input_vectors + j * N_FEAT_PAD);
+
+			// Root node is: Encoding -> Clustering for a single HV.
+#ifndef NODFG
 			void *DFG = __hetero_launch(
-				(void*) root_node<Dhv, N_CENTER, N_SAMPLE, N_FEAT, int>,
-				/* Input Buffers: 5*/ 5 + 1,
-				rp_matrix_ptr, rp_matrix_size, //false,
-				&input_vector[j * N_FEAT], input_vector_size, //true,
-				encoded_hv_ptr, encoded_hv_size,// false,
-				clusters_ptr, clusters_size, //false,
-				clusters_temp_ptr, clusters_size, //false,
-				/* Output Buffers: 2*/ 
+#ifdef FPGA
+				(void*) flattened_root<Dhv, N_CENTER, N_SAMPLE, N_FEAT>,
+
+#else
+				(void*) root_node<Dhv, N_CENTER, N_SAMPLE, N_FEAT>,
+#endif
+
+				/* Input Buffers: 4*/ 10,
+				rp_matrix_buffer, rp_matrix_size, //false,
+				&datapoint_hv, input_vector_size, //true,
+				&clusters, clusters_size, //false,
+				&clusters_temp, clusters_size, //false,
+				/* Local Var Buffers 4*/
+				encoded_hv_buffer, encoded_hv_size,// false,
+				scores_buffer, scores_size,
+                update_hv_ptr, update_hv_size,
+				j, 0, 
+				/* Output Buffers: 1*/ 
+#ifdef FPGA
 				labels, labels_size,
-				1,
-				labels, labels_size //, false
+#else
+
+                // Directly just push the pointer offset for the location to update
+				(labels+j), sizeof(int),
+#endif
+				2,
+
+#ifdef FPGA
+				labels, labels_size,
+#else
+
+                // Directly just push the pointer offset for the location to update
+				(labels+j), sizeof(int),
+#endif
+				&clusters_temp, clusters_size
 			);
-			__hetero_wait(DFG);
+			__hetero_wait(DFG); 
+#else
+                    root_node<Dhv, N_CENTER, N_SAMPLE, N_FEAT>(
+                        (__hypermatrix__<Dhv, N_FEAT, hvtype> *) rp_matrix_buffer, rp_matrix_size,
+                        &datapoint_hv, input_vector_size,
+                        &clusters, clusters_size,
+                        &clusters_temp, clusters_size,
+                        (__hypervector__<Dhv, hvtype> *) encoded_hv_buffer, encoded_hv_size,
+                        (__hypervector__<N_CENTER, hvtype> *) scores_buffer, scores_size,
+                        (__hypervector__<Dhv, hvtype> *) update_hv_ptr, update_hv_size,
+                        j, 0, 
+                        labels, labels_size
+                    );
+#endif
+
+			//std::cout << "after root launch" << std::endl;
+		
 		}
 		// then update clusters and copy clusters_tmp to clusters, 
 
-		// How do we keep track of the normalization thing?
-		// Calcualte eucl maginutde of each cluster HV before copying it over?.
+		// TODO: Move to DAG
+		std::cout << "after root node\n";
+		
+		// TODO: Just swap pointers?? 
 		for (int k = 0; k < N_CENTER; k++) {
 			// set temp_clusters -> clusters
-			__hypervector__<Dhv, int> cluster = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, int>(clusters_temp, N_CENTER, Dhv, k);
-			// Normalize or sign?
-			__hypervector__<Dhv, int> cluster_norm = __hetero_hdc_sign<Dhv, int>(cluster);
+			__hypervector__<Dhv, hvtype> cluster_temp = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, hvtype>(clusters_temp, N_CENTER, Dhv, k);
+
+			#ifdef HAMMING_DIST
+			__hypervector__<Dhv, hvtype> cluster_norm = __hetero_hdc_sign<Dhv, hvtype>(cluster_temp);
 			__hetero_hdc_set_matrix_row(clusters, cluster_norm, k);
+			#else
+			__hetero_hdc_set_matrix_row(clusters, cluster_temp, k);
+			#endif
 		} 
-	} 
-	#endif
+
+		
+	}
+	auto flattened_root_t_elapsed = std::chrono::high_resolution_clock::now() - flattened_root_t_start;
+	long flattened_root_mSec = std::chrono::duration_cast<std::chrono::milliseconds>(flattened_root_t_elapsed).count();
+	std::cout << "flattened_root: " << flattened_root_mSec << " mSec" << std::endl;
+
+
 	t_elapsed = std::chrono::high_resolution_clock::now() - t_start;
 	
 	mSec = std::chrono::duration_cast<std::chrono::milliseconds>(t_elapsed).count();
 	
-	/*
-	long double distance = 0;
-	int count = 0;
 
-	for(int i = 0; i < N_SAMPLE; i++){
-		//cout << labels_gmem[i] << endl;
-		long double sum1 = 0;
-		if(labels_gmem[i] < N_CENTER){
-			count++;
-			for(int j = 0; j < N_FEAT; j++){
-				long double temp;
-				if(shuffled)
-					temp = X_data_shuffled[labels_gmem[i]*N_FEAT + j] - X_data_shuffled[i*N_FEAT + j];
-				else
-					temp = X_data[labels_gmem[i]*N_FEAT + j] - X_data[i*N_FEAT + j];
-				sum1 += temp*temp;
-			}
-		}
-		distance += sqrt(sum1);
-	}
-	*/
 	std::cout << "\nReading data took " << mSec1 << " mSec" << std::endl;    
 	std::cout << "Execution (" << EPOCH << " epochs)  took " << mSec << " mSec" << std::endl;
 	
@@ -217,12 +421,12 @@ int main(int argc, char** argv)
 	for(int i = 0; i < N_SAMPLE; i++){
 		myfile << y_data[i] << " " << labels[i] << std::endl;
 	}
-	//calculate score
-	//string command = "python -W ignore mutual_info.py";
-	//system(command.c_str());
-    
- //   cout << "\nNormalized distance:\t" << int(distance / count / Dhv) << endl;
-    //cout << "\nAccuracy = " << float(correct)/N_SAMPLE << endl;
+#ifndef NODFG
+	__hpvm__cleanup();
+#endif
+	return 0;
 }
 
-#endif
+
+
+

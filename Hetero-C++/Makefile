@@ -1,6 +1,6 @@
 HPVM_INSTALL_DIR ?= /home/arnoor2/hpvm_hdc/hpvm/hpvm/
 HPVM_BUILD_DIR := $(HPVM_INSTALL_DIR)/build/
-INCLUDES := -I$(HPVM_INSTALL_DIR)/include -I$(HPVM_INSTALL_DIR)/benchmarks/include -I$(HPVM_INSTALL_DIR)/projects/hpvm-hdc -I$(HPVM_INSTALL_DIR)/projects/hetero-c++/test/include -I./streaming-src
+INCLUDES := -I$(HPVM_INSTALL_DIR)/include -I$(HPVM_INSTALL_DIR)/benchmarks/include -I$(HPVM_INSTALL_DIR)/projects/hpvm-hdc -I$(HPVM_INSTALL_DIR)/projects/hetero-c++/test/include -I./src
 
 HPVM_LIB := $(HPVM_INSTALL_DIR)/build/lib
 HPVM_BIN := $(HPVM_INSTALL_DIR)/build/bin
@@ -24,7 +24,7 @@ host-accel: build/hdc.lowered.accel.ll accelerator_api/hpvm_interface.cpp accele
 	$(HPVM_INSTALL_DIR)/build/bin/clang++ -lm -lrt -g -Ofast accelerator_api/hpvm_interface.cpp $< -o $@ 
 
 # Clang Frontend to IR
-build/host.accel.ll: streaming-src/host.cpp streaming-src/host.h streaming-src/DFG.hpp
+build/host.accel.ll: src/host.cpp src/host.h src/DFG.hpp
 	$(HPVM_BIN)/clang++ -DNODFG -DACCEL -DDEVICE=hpvm::CPU_TARGET $(CFLAGS) $(INCLUDES) -S -emit-llvm $< -o $@ 
 #$HPVM_BIN/clang++ -O1 -I$OPENCL_PATH/include/CL -L$OPENCL_LIB_PATH -I$HPVM_ROOT/projects/hetero-c++/test/include/ -lm -lrt -pthread -lOpenCL  $INCLUDE_FLAG -fenable-matrix    $PREFIX.cpp -S -emit-llvm -o $PREFIX.ll
 
@@ -64,7 +64,7 @@ host-cpu: build/output.ll
 #
 
 # Clang Frontend to IR
-build/host.cpu.ll: streaming-src/host.cpp
+build/host.cpu.ll: src/host.cpp
 	$(HPVM_BIN)/clang++ -DHPVM -DDEVICE=hpvm::CPU_TARGET $(CFLAGS) $(INCLUDES) -S -emit-llvm $^ -o $@ 
 #$HPVM_BIN/clang++ -O1 -I$OPENCL_PATH/include/CL -L$OPENCL_LIB_PATH -I$HPVM_ROOT/projects/hetero-c++/test/include/ -lm -lrt -pthread -lOpenCL  $INCLUDE_FLAG -fenable-matrix    $PREFIX.cpp -S -emit-llvm -o $PREFIX.ll
 
@@ -104,7 +104,7 @@ host-gpu: build/output.gpu.ll
 	$(HPVM_INSTALL_DIR)/build/bin/clang++ -I$(OPENCL_PATH)/include/CL -L$(OPENCL_LIB_PATH) -lm -lrt -pthread -lOpenCL -O2 $< -o $@
 
 # Clang Frontend to IR
-build/host.gpu.ll: streaming-src/host.cpp
+build/host.gpu.ll: src/host.cpp
 	$(HPVM_BIN)/clang++ -DHPVM -DDEVICE=hpvm::GPU_TARGET $(CFLAGS) $(INCLUDES) -S -emit-llvm $^ -o $@ 
 #$HPVM_BIN/clang++ -O1 -I$OPENCL_PATH/include/CL -L$OPENCL_LIB_PATH -I$HPVM_ROOT/projects/hetero-c++/test/include/ -lm -lrt -pthread -lOpenCL  $INCLUDE_FLAG -fenable-matrix    $PREFIX.cpp -S -emit-llvm -o $PREFIX.ll
 
@@ -144,7 +144,7 @@ host-fpga: build/output.fpga.ll
 	$(HPVM_INSTALL_DIR)/build/bin/clang++ -I$(OPENCL_PATH)/include/CL -L$(OPENCL_LIB_PATH) -lm -lrt -pthread -lOpenCL -O2 $< -o $@
 
 # Clang Frontend to IR
-build/host.fpga.ll: streaming-src/host.cpp
+build/host.fpga.ll: src/host.cpp
 	$(HPVM_BIN)/clang++ -DHPVM -DFPGA -DDEVICE=hpvm::FPGA_TARGET $(CFLAGS) $(INCLUDES) -S -emit-llvm $^ -o $@ 
 #$HPVM_BIN/clang++ -O1 -I$OPENCL_PATH/include/CL -L$OPENCL_LIB_PATH -I$HPVM_ROOT/projects/hetero-c++/test/include/ -lm -lrt -pthread -lOpenCL  $INCLUDE_FLAG -fenable-matrix    $PREFIX.cpp -S -emit-llvm -o $PREFIX.ll
 
