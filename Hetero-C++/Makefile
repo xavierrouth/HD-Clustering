@@ -17,25 +17,25 @@ CFLAGS := -O1 -fenable-matrix -fno-discard-value-names -fno-exceptions -lm -lrt 
 #
 #
 #
-### ---------- ACCEL ---------------
+### ---------- SIM ---------------
 
 # Generate Executable
-host-accel: build/hdc.lowered.accel.ll accelerator_api/hpvm_interface.cpp accelerator_api/api_hdnn_reram.hpp
+host-sim: build/hdc.lowered.sim.ll accelerator_api/hpvm_interface.cpp accelerator_api/api_hdnn_reram.hpp
 	$(HPVM_INSTALL_DIR)/build/bin/clang++ -lm -lrt -g -Ofast accelerator_api/hpvm_interface.cpp $< -o $@ 
 
 # Clang Frontend to IR
-build/host.accel.ll: src/host.cpp src/host.h src/DFG.hpp
+build/host.sim.ll: src/host.cpp src/host.h src/DFG.hpp
 	$(HPVM_BIN)/clang++ -DNODFG -DACCEL -DDEVICE=hpvm::CPU_TARGET $(CFLAGS) $(INCLUDES) -S -emit-llvm $< -o $@ 
 #$HPVM_BIN/clang++ -O1 -I$OPENCL_PATH/include/CL -L$OPENCL_LIB_PATH -I$HPVM_ROOT/projects/hetero-c++/test/include/ -lm -lrt -pthread -lOpenCL  $INCLUDE_FLAG -fenable-matrix    $PREFIX.cpp -S -emit-llvm -o $PREFIX.ll
 
 # GenHPVM for HDC only and mem2reg
-build/hpvm.genhdc.accel.ll: build/host.accel.ll
+build/hpvm.genhdc.sim.ll: build/host.sim.ll
 	$(HPVM_BIN)/opt -mem2reg -enable-new-pm=0 -load $(HPVM_LIB)/HPVMGenHPVM.so -genhpvm -hpvm-hdc-only $< -S -o $@
 # $OPT -mem2reg -enable-new-pm=0 -load $HPVM_LIB/HPVMGenHPVM.so -genhpvm  -hpvm-hdc-only $PREFIX.ll -S -o $PREFIX.genhdc.hpvm.ll
 
 # Lower HDC Intrinsics
-build/hdc.lowered.accel.ll: build/hpvm.genhdc.accel.ll #hpvm. # -enable-hcc
-	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/LLVMHPVMHDC.so -vector-block-dim=1 -lower-hdc -compile-accel -dce -simplifycfg $< -S -o $@ 
+build/hdc.lowered.sim.ll: build/hpvm.genhdc.sim.ll #hpvm. # -enable-hcc
+	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/LLVMHPVMHDC.so -vector-block-dim=1 -lower-hdc -compile-sim -dce -simplifycfg $< -S -o $@ 
 	
 # HCC -> HPVM
 #build/hpvmc.accel.ll: build/hdc.lowered.accel.ll

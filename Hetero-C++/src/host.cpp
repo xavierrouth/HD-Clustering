@@ -142,7 +142,10 @@ int main(int argc, char** argv)
 	// N_FEAT is number of entries per vector
 	size_t input_vector_size = N_FEAT * sizeof(hvtype); // Size of a single vector
 
-	int labels[N_SAMPLE]; // Does this need to be malloced?
+	int *labels = new int[N_SAMPLE]; // Does this need to be malloced?
+	for (int i = 0; i < N_SAMPLE; ++i) {
+		labels[i] = 0;
+	}
 	// N_SAMPLE is number of input vectors
 	size_t labels_size = N_SAMPLE * sizeof(int);
 
@@ -377,7 +380,7 @@ int main(int argc, char** argv)
                         (__hypervector__<N_CENTER, hvtype> *) scores_buffer, scores_size,
                         (__hypervector__<Dhv, hvtype> *) update_hv_ptr, update_hv_size,
                         j, 0, 
-                        labels, labels_size
+                        labels + j, sizeof(int)
                     );
 #endif
 

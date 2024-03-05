@@ -493,7 +493,6 @@ void root_node( /* Input buffers: 4*/
             labels_index, convergence_threshold 
             );
 
-
     
 
 
