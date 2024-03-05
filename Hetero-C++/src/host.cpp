@@ -340,15 +340,13 @@ int main(int argc, char** argv)
 				(void*) root_node<Dhv, N_CENTER, N_SAMPLE, N_FEAT>,
 #endif
 
-				/* Input Buffers: 4*/ 10,
+				/* Input Buffers: 4*/ 8,
 				rp_matrix_buffer, rp_matrix_size, //false,
 				&datapoint_hv, input_vector_size, //true,
 				&clusters, clusters_size, //false,
-				&clusters_temp, clusters_size, //false,
 				/* Local Var Buffers 4*/
 				encoded_hv_buffer, encoded_hv_size,// false,
 				scores_buffer, scores_size,
-                update_hv_ptr, update_hv_size,
 				j, 0, 
 				/* Output Buffers: 1*/ 
 #ifdef FPGA
@@ -358,16 +356,15 @@ int main(int argc, char** argv)
                 // Directly just push the pointer offset for the location to update
 				(labels+j), sizeof(int),
 #endif
-				2,
+				1,
 
 #ifdef FPGA
 				labels, labels_size,
 #else
 
                 // Directly just push the pointer offset for the location to update
-				(labels+j), sizeof(int),
+				(labels+j), sizeof(int)
 #endif
-				&clusters_temp, clusters_size
 			);
 			__hetero_wait(DFG); 
 #else
@@ -375,10 +372,8 @@ int main(int argc, char** argv)
                         (__hypermatrix__<Dhv, N_FEAT, hvtype> *) rp_matrix_buffer, rp_matrix_size,
                         &datapoint_hv, input_vector_size,
                         &clusters, clusters_size,
-                        &clusters_temp, clusters_size,
                         (__hypervector__<Dhv, hvtype> *) encoded_hv_buffer, encoded_hv_size,
                         (__hypervector__<N_CENTER, hvtype> *) scores_buffer, scores_size,
-                        (__hypervector__<Dhv, hvtype> *) update_hv_ptr, update_hv_size,
                         j, 0, 
                         labels + j, sizeof(int)
                     );
@@ -392,7 +387,11 @@ int main(int argc, char** argv)
 		// TODO: Move to DAG
 		std::cout << "after root node\n";
 		
-		// TODO: Just swap pointers?? 
+		for (int j = 0; j < N_SAMPLE; j++) {
+			__hypervector__<Dhv, hvtype> update_hv =  __hetero_hdc_get_matrix_row<N_CENTER, Dhv, hvtype>(clusters_temp, N_CENTER, Dhv, labels[j]);
+			update_hv = __hetero_hdc_sum<Dhv, hvtype>(update_hv, *(__hypervector__<Dhv, hvtype> *) encoded_hv_buffer); // May need an instrinsic for this.
+			__hetero_hdc_set_matrix_row<N_CENTER, Dhv, hvtype>(clusters_temp, update_hv, labels[j]); // How do we normalize?
+		} 
 		for (int k = 0; k < N_CENTER; k++) {
 			// set temp_clusters -> clusters
 			__hypervector__<Dhv, hvtype> cluster_temp = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, hvtype>(clusters_temp, N_CENTER, Dhv, k);

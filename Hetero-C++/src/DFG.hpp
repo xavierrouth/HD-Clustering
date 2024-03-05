@@ -180,9 +180,7 @@ template<int D, int K, int N_VEC>
 void __attribute__ ((noinline)) clustering_node(/* Input Buffers: 3*/
         __hypervector__<D, hvtype>* encoded_hv_ptr, size_t encoded_hv_size, 
         __hypermatrix__<K, D, hvtype>* clusters_ptr, size_t clusters_size, 
-        __hypermatrix__<K, D, hvtype>* temp_clusters_ptr, size_t temp_clusters_size, // ALSO AN OUTPUT
         __hypervector__<K, SCORES_TYPE>* scores_ptr, size_t scores_size, // Used as Local var.
-        __hypervector__<D, hvtype>* update_hv_ptr, size_t update_hv_size,  // Used in second stage of clustering node for extracting and accumulating
         int encoded_hv_idx,
         /* Output Buffers: 1*/
         int* labels, size_t labels_size) { // Mapping of HVs to Clusters. int[N_VEC]
@@ -378,14 +376,12 @@ void encoding_and_inference_node(
                 __hypervector__<N_FEATURES, hvtype>* datapoint_vec_ptr, size_t datapoint_vec_size, // Features
                 __hypermatrix__<K, D, hvtype>* clusters_ptr, size_t clusters_size, 
 int* labels, size_t labels_size,
-                __hypermatrix__<K, D, hvtype>* temp_clusters_ptr, size_t temp_clusters_size, // ALSO AN OUTPUT
                 /* Local Vars: 2*/
                 __hypervector__<D, hvtype>* encoded_hv_ptr, size_t encoded_hv_size, 
                 
 
                 __hypervector__<K, SCORES_TYPE>* scores_ptr, size_t scores_size,
 
-                __hypervector__<D, hvtype>* update_hv_ptr, size_t update_hv_size,  
                 /* Parameters: 2*/
                 int labels_index, int convergence_threshold
                 ){
@@ -410,11 +406,9 @@ int* labels, size_t labels_size,
     __hetero_task_end(encoding_task);
 
     void* clustering_task = __hetero_task_begin(
-        /* Input Buffers: 5 */  7, 
+        /* Input Buffers: 5 */  5, 
                                 encoded_hv_ptr, encoded_hv_size, 
                                 clusters_ptr, clusters_size, 
-                                temp_clusters_ptr, temp_clusters_size, 
-                                update_hv_ptr, update_hv_size,
                                 labels, labels_size,
                                 scores_ptr, scores_size,
         /* Parameters: 1 */     labels_index,
@@ -424,7 +418,7 @@ int* labels, size_t labels_size,
     );
 #endif
 
-    clustering_node<D, K, N_VEC>(encoded_hv_ptr, encoded_hv_size, clusters_ptr, clusters_size, temp_clusters_ptr, temp_clusters_size, scores_ptr, scores_size,  update_hv_ptr, update_hv_size, labels_index, labels, labels_size); 
+    clustering_node<D, K, N_VEC>(encoded_hv_ptr, encoded_hv_size, clusters_ptr, clusters_size, scores_ptr, scores_size,  labels_index, labels, labels_size); 
 
 #ifndef NODFG
     __hetero_task_end(clustering_task);
@@ -437,18 +431,16 @@ int* labels, size_t labels_size,
 
 // Dimensionality, Clusters, data point vectors, features per.
 template <int D, int K, int N_VEC, int N_FEATURES>
-void root_node( /* Input buffers: 4*/ 
+void root_node( /* Input buffers: 3*/ 
                 __hypermatrix__<D, N_FEATURES, hvtype>* rp_matrix_ptr, size_t rp_matrix_size, 
                 __hypervector__<N_FEATURES, hvtype>* datapoint_vec_ptr, size_t datapoint_vec_size, // Features
                 __hypermatrix__<K, D, hvtype>* clusters_ptr, size_t clusters_size, 
-                __hypermatrix__<K, D, hvtype>* temp_clusters_ptr, size_t temp_clusters_size, // ALSO AN OUTPUT
                 /* Local Vars: 2*/
                 __hypervector__<D, hvtype>* encoded_hv_ptr, size_t encoded_hv_size, 
                 
 
                 __hypervector__<K, SCORES_TYPE>* scores_ptr, size_t scores_size,
 
-                __hypervector__<D, hvtype>* update_hv_ptr, size_t update_hv_size,  
                 /* Parameters: 2*/
                 int labels_index, int convergence_threshold, // <- not used.
                 /* Output Buffers: 2*/
@@ -461,15 +453,13 @@ void root_node( /* Input buffers: 4*/
     
     // Re-encode each iteration.
     void* inference_task = __hetero_task_begin(
-            /* Input Buffers:  */ 10, 
+            /* Input Buffers:  */ 8, 
             rp_matrix_ptr, rp_matrix_size, 
             datapoint_vec_ptr,  datapoint_vec_size,
             clusters_ptr,  clusters_size, 
             labels,  labels_size,
-            temp_clusters_ptr,  temp_clusters_size, // ALSO AN OUTPUT
             encoded_hv_ptr, encoded_hv_size, 
             scores_ptr, scores_size,
-            update_hv_ptr,  update_hv_size,  
             labels_index, convergence_threshold, // <- not used.
 
             /* Output Buffers: 1 */ 2, 
@@ -480,52 +470,19 @@ void root_node( /* Input buffers: 4*/
 #endif
 
     __hetero_hdc_inference(
-            /* Num Formal Parameters */ 18,
+            /* Num Formal Parameters */ 14,
             (void*) encoding_and_inference_node<D, K, N_VEC, N_FEATURES>,
             rp_matrix_ptr, rp_matrix_size, 
             datapoint_vec_ptr,  datapoint_vec_size,
             clusters_ptr,  clusters_size, 
             labels,  labels_size,
-            temp_clusters_ptr,  temp_clusters_size, 
             encoded_hv_ptr, encoded_hv_size, 
             scores_ptr, scores_size,
-            update_hv_ptr,  update_hv_size,  
             labels_index, convergence_threshold 
             );
-
     
-
-
 #ifndef NODFG
     __hetero_task_end(inference_task);
-
-
-
-    void* update_task = __hetero_task_begin(
-        /* Input Buffers: 4 */  4, 
-                                encoded_hv_ptr, encoded_hv_size, 
-                                temp_clusters_ptr, temp_clusters_size, 
-                                update_hv_ptr, update_hv_size,
-                                labels, labels_size,
-        /* Output Buffers: 1 */ 2,  
-        labels, labels_size,
-        temp_clusters_ptr, temp_clusters_size,
-        "update_task"  
-    );
-
-    __hetero_hint(DEVICE);
-#endif
-    {
-
-        *update_hv_ptr =  __hetero_hdc_get_matrix_row<K, D, hvtype>(*temp_clusters_ptr, K, D, *labels);
-        *update_hv_ptr = __hetero_hdc_sum<D, hvtype>(*update_hv_ptr, *encoded_hv_ptr); // May need an instrinsic for this.
-        __hetero_hdc_set_matrix_row<K, D, hvtype>(*temp_clusters_ptr, *update_hv_ptr, *labels); // How do we normalize?
-
-    }
-
-#ifndef NODFG
-    __hetero_task_end(update_task);
-
     __hetero_section_end(root_section);
 #endif
     return;
