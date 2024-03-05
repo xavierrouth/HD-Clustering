@@ -326,6 +326,7 @@ int main(int argc, char** argv)
 	for (int i = 0; i < EPOCH; i++) {
 		// Can we normalize the hypervectors here or do we have to do that in the DFG.
 		std::cout << "Epoch: #" << i << std::endl;
+#if 0
 		for (int j = 0; j < N_SAMPLE; j++) {
 
 			__hypervector__<N_FEAT, hvtype> datapoint_hv = __hetero_hdc_create_hypervector<N_FEAT, hvtype>(1, (void*) initialize_hv<hvtype>, input_vectors + j * N_FEAT_PAD);
@@ -361,6 +362,18 @@ int main(int argc, char** argv)
 			//std::cout << "after root launch" << std::endl;
 		
 		}
+#else
+		__hetero_hdc_inference_loop(12, (void*) root_node<Dhv, N_CENTER, N_SAMPLE, N_FEAT>,
+			N_SAMPLE, N_FEAT, N_FEAT_PAD,
+			rp_matrix_buffer, rp_matrix_size,
+			input_vectors, input_vector_size,
+			&clusters, clusters_size,
+			labels,
+			encoded_hv_buffer, encoded_hv_size,
+			scores_buffer, scores_size
+		);
+			
+#endif
 		// then update clusters and copy clusters_tmp to clusters, 
 
 		// TODO: Move to DAG
