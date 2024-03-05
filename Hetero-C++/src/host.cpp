@@ -333,38 +333,18 @@ int main(int argc, char** argv)
 			// Root node is: Encoding -> Clustering for a single HV.
 #ifndef NODFG
 			void *DFG = __hetero_launch(
-#ifdef FPGA
-				(void*) flattened_root<Dhv, N_CENTER, N_SAMPLE, N_FEAT>,
-
-#else
 				(void*) root_node<Dhv, N_CENTER, N_SAMPLE, N_FEAT>,
-#endif
-
-				/* Input Buffers: 4*/ 8,
+				/* Input Buffers: 4*/ 6,
 				rp_matrix_buffer, rp_matrix_size, //false,
 				&datapoint_hv, input_vector_size, //true,
 				&clusters, clusters_size, //false,
-				/* Local Var Buffers 4*/
+				/* Output Buffers: 1*/ 
+				(labels+j), sizeof(int),
+				/* Local Var Buffers 2*/
 				encoded_hv_buffer, encoded_hv_size,// false,
 				scores_buffer, scores_size,
-				j, 0, 
-				/* Output Buffers: 1*/ 
-#ifdef FPGA
-				labels, labels_size,
-#else
-
-                // Directly just push the pointer offset for the location to update
-				(labels+j), sizeof(int),
-#endif
 				1,
-
-#ifdef FPGA
-				labels, labels_size,
-#else
-
-                // Directly just push the pointer offset for the location to update
 				(labels+j), sizeof(int)
-#endif
 			);
 			__hetero_wait(DFG); 
 #else
@@ -372,10 +352,9 @@ int main(int argc, char** argv)
                         (__hypermatrix__<Dhv, N_FEAT, hvtype> *) rp_matrix_buffer, rp_matrix_size,
                         &datapoint_hv, input_vector_size,
                         &clusters, clusters_size,
+                        labels + j, sizeof(int)
                         (__hypervector__<Dhv, hvtype> *) encoded_hv_buffer, encoded_hv_size,
                         (__hypervector__<N_CENTER, hvtype> *) scores_buffer, scores_size,
-                        j, 0, 
-                        labels + j, sizeof(int)
                     );
 #endif
 
