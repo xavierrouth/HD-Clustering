@@ -69,6 +69,17 @@ void allocate_feature_mem(void *FeatureMem, size_t NumBytes) {
 
 void allocate_class_mem(void *ClassMem, size_t NumBytes) {
   ins_hdnn_reram->allocate_class_mem((int16_t *)ClassMem, NumBytes);
+#if 1
+  // Program class HVs into reram array
+  uint32_t dim_hv = ins_hdnn_reram->dim_hv;
+  uint32_t num_class = ins_hdnn_reram->num_class;
+  for (int label = 0; label < num_class; ++label) {
+    for (int i = 0; i < dim_hv; i++) {
+      ins_hdnn_reram->program_reram_bit(
+          ins_hdnn_reram->class_mem[label * dim_hv + i] >= 0, label, i);
+    }
+  }
+#endif
 }
 
 void read_class_mem(void *ClassMem, size_t NumBytes) {
