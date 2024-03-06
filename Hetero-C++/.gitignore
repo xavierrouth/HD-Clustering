@@ -2,6 +2,7 @@
 host-normal
 host-cpu
 host-fpga
+host-sim
 *.aoco
 *.temp
 dump*

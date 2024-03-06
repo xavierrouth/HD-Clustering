@@ -164,12 +164,9 @@ int main(int argc, char** argv)
 	hvtype* update_hv_ptr = new hvtype[Dhv];
 	size_t update_hv_size = Dhv * sizeof(hvtype);
 	
-	// Used to store a temporary cluster for initializion
-	__hypervector__<Dhv, hvtype> cluster = __hetero_hdc_hypervector<Dhv, hvtype>();
-	size_t cluster_size = Dhv * sizeof(hvtype);
-
 	// Read from during clustering, updated from clusters_temp.
-	__hypermatrix__<N_CENTER, Dhv, hvtype> clusters = __hetero_hdc_hypermatrix<N_CENTER, Dhv, hvtype>();
+	__hypermatrix__<N_CENTER, Dhv, hvtype> *clusters = new __hypermatrix__<N_CENTER, Dhv, hvtype>();//__hetero_hdc_hypermatrix<N_CENTER, Dhv, hvtype>();
+	size_t cluster_size = Dhv * sizeof(hvtype);
 	size_t clusters_size = N_CENTER * Dhv * sizeof(hvtype);
 
 	// Gets written into during clustering, then is used to update 'clusters' at the end.
@@ -265,28 +262,26 @@ int main(int argc, char** argv)
 	// Initialize cluster hvs.
 	std::cout << "Init cluster hvs:" << std::endl;
 	auto InitialEncodingDAG_t_start = std::chrono::high_resolution_clock::now();
+#if 1
 	for (int k = 0; k < N_CENTER; k++) {
 		__hypervector__<N_FEAT, hvtype> datapoint_hv = __hetero_hdc_create_hypervector<N_FEAT, hvtype>(1, (void*) initialize_hv<hvtype>, input_vectors + k * N_FEAT_PAD);
 		//hvtype* datapoint_hv_buffer = new hvtype[N_FEAT];
 		//*((__hypervector__<N_FEAT, hvtype> *) datapoint_hv_buffer) = datapoint_hv;
 		// Encode the first N_CENTER hypervectors and set them to be the clusters.
+	        __hypervector__<Dhv, hvtype> *cluster = ((__hypervector__<Dhv, hvtype> *) clusters) + k;
+
 
 #ifndef NODFG
 		void* initialize_DFG = __hetero_launch(
-#if 1
 			(void*) InitialEncodingDAG<Dhv, N_FEAT>,
-#else
-			(void*) rp_encoding_node_copy<Dhv, N_FEAT>,
-#endif
-
-			2 + 1,
+			3,
 			/* Input Buffers: 2*/ 
-            rp_matrix_buffer, rp_matrix_size,
+			rp_matrix_buffer, rp_matrix_size,
 			&datapoint_hv, input_vector_size,
 			/* Output Buffers: 1*/ 
-			&cluster, cluster_size,  //false,
+			cluster, cluster_size,  //false,
 			1,
-			&cluster, cluster_size //false
+			cluster, cluster_size //false
 		);
 
 		__hetero_wait(initialize_DFG);
@@ -294,18 +289,19 @@ int main(int argc, char** argv)
                 InitialEncodingDAG<Dhv, N_FEAT>(
 		    (__hypermatrix__<Dhv, N_FEAT, hvtype> *) rp_matrix_buffer, rp_matrix_size,
 		    &datapoint_hv, input_vector_size,
-		    &cluster, cluster_size
+		    cluster, cluster_size
                 );
 #endif
-
-
-		// rp_encoding_node encodes a single cluster, which we then have to assign to our big group of clusters in cluster[s].
-		// Note cluster vs clusters
-		std::cout <<" Cluter "<< k << "\n";
-        print_hv<Dhv, hvtype>(cluster);
-		__hetero_hdc_set_matrix_row<N_CENTER, Dhv, hvtype>(clusters, cluster, k);
-		__hypervector__<Dhv, hvtype> cluster_temp = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, hvtype>(clusters, N_CENTER, Dhv, k);
 	}
+#else
+	__hetero_hdc_encoding_loop(
+		0, (void*) InitialEncodingDAG<Dhv, N_FEAT>,
+		N_SAMPLE, N_FEAT, N_FEAT_PAD, N_CENTER,
+		rp_matrix_buffer, rp_matrix_size,
+		input_vectors, input_vector_size,
+		clusters, cluster_size
+	);
+#endif
 	auto InitialEncodingDAG_t_elapsed = std::chrono::high_resolution_clock::now() - InitialEncodingDAG_t_start;
 	long InitialEncodingDAG_mSec = std::chrono::duration_cast<std::chrono::milliseconds>(InitialEncodingDAG_t_elapsed).count();
 	std::cout << "InitialEncodingDAG: " << InitialEncodingDAG_mSec << " mSec" << std::endl;
@@ -315,7 +311,7 @@ int main(int argc, char** argv)
 
 	#if DEBUG
 	for (int i = 0; i < N_CENTER; i++) {
-		__hypervector__<Dhv, hvtype> cluster_temp = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, hvtype>(clusters, N_CENTER, Dhv, i);
+		__hypervector__<Dhv, hvtype> cluster_temp = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, hvtype>(*clusters, N_CENTER, Dhv, i);
 		std::cout << i << " ";
 		print_hv<Dhv, hvtype>(cluster_temp);
 	}
@@ -329,7 +325,7 @@ int main(int argc, char** argv)
 			N_SAMPLE, N_FEAT, N_FEAT_PAD,
 			rp_matrix_buffer, rp_matrix_size,
 			input_vectors, input_vector_size,
-			&clusters, clusters_size,
+			clusters, clusters_size,
 			labels,
 			encoded_hv_buffer, encoded_hv_size,
 			scores_buffer, scores_size
@@ -348,9 +344,9 @@ int main(int argc, char** argv)
 
 			#ifdef HAMMING_DIST
 			__hypervector__<Dhv, hvtype> cluster_norm = __hetero_hdc_sign<Dhv, hvtype>(cluster_temp);
-			__hetero_hdc_set_matrix_row(clusters, cluster_norm, k);
+			__hetero_hdc_set_matrix_row(*clusters, cluster_norm, k);
 			#else
-			__hetero_hdc_set_matrix_row(clusters, cluster_temp, k);
+			__hetero_hdc_set_matrix_row(*clusters, cluster_temp, k);
 			#endif
 		} 
 
