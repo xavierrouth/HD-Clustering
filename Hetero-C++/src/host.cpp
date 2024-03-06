@@ -321,48 +321,10 @@ int main(int argc, char** argv)
 	}
 	#endif
 
-	auto flattened_root_t_start = std::chrono::high_resolution_clock::now();
-    int label_index = 1;
+	auto inference_t_start = std::chrono::high_resolution_clock::now();
 	for (int i = 0; i < EPOCH; i++) {
-		// Can we normalize the hypervectors here or do we have to do that in the DFG.
 		std::cout << "Epoch: #" << i << std::endl;
-#if 0
-		for (int j = 0; j < N_SAMPLE; j++) {
 
-			__hypervector__<N_FEAT, hvtype> datapoint_hv = __hetero_hdc_create_hypervector<N_FEAT, hvtype>(1, (void*) initialize_hv<hvtype>, input_vectors + j * N_FEAT_PAD);
-
-			// Root node is: Encoding -> Clustering for a single HV.
-#ifndef NODFG
-			void *DFG = __hetero_launch(
-				(void*) root_node<Dhv, N_CENTER, N_SAMPLE, N_FEAT>,
-				/* Input Buffers: 4*/ 6,
-				rp_matrix_buffer, rp_matrix_size, //false,
-				&datapoint_hv, input_vector_size, //true,
-				&clusters, clusters_size, //false,
-				/* Output Buffers: 1*/ 
-				(labels+j), sizeof(int),
-				/* Local Var Buffers 2*/
-				encoded_hv_buffer, encoded_hv_size,// false,
-				scores_buffer, scores_size,
-				1,
-				(labels+j), sizeof(int)
-			);
-			__hetero_wait(DFG); 
-#else
-                    root_node<Dhv, N_CENTER, N_SAMPLE, N_FEAT>(
-                        (__hypermatrix__<Dhv, N_FEAT, hvtype> *) rp_matrix_buffer, rp_matrix_size,
-                        &datapoint_hv, input_vector_size,
-                        &clusters, clusters_size,
-                        labels + j, sizeof(int)
-                        (__hypervector__<Dhv, hvtype> *) encoded_hv_buffer, encoded_hv_size,
-                        (__hypervector__<N_CENTER, hvtype> *) scores_buffer, scores_size,
-                    );
-#endif
-
-			//std::cout << "after root launch" << std::endl;
-		
-		}
-#else
 		__hetero_hdc_inference_loop(12, (void*) root_node<Dhv, N_CENTER, N_SAMPLE, N_FEAT>,
 			N_SAMPLE, N_FEAT, N_FEAT_PAD,
 			rp_matrix_buffer, rp_matrix_size,
@@ -373,11 +335,7 @@ int main(int argc, char** argv)
 			scores_buffer, scores_size
 		);
 			
-#endif
 		// then update clusters and copy clusters_tmp to clusters, 
-
-		// TODO: Move to DAG
-		std::cout << "after root node\n";
 		
 		for (int j = 0; j < N_SAMPLE; j++) {
 			__hypervector__<Dhv, hvtype> update_hv =  __hetero_hdc_get_matrix_row<N_CENTER, Dhv, hvtype>(clusters_temp, N_CENTER, Dhv, labels[j]);
@@ -398,9 +356,9 @@ int main(int argc, char** argv)
 
 		
 	}
-	auto flattened_root_t_elapsed = std::chrono::high_resolution_clock::now() - flattened_root_t_start;
-	long flattened_root_mSec = std::chrono::duration_cast<std::chrono::milliseconds>(flattened_root_t_elapsed).count();
-	std::cout << "flattened_root: " << flattened_root_mSec << " mSec" << std::endl;
+	auto inference_t_elapsed = std::chrono::high_resolution_clock::now() - inference_t_start;
+	long inference_mSec = std::chrono::duration_cast<std::chrono::milliseconds>(inference_t_elapsed).count();
+	std::cout << "inference: " << inference_mSec << " mSec" << std::endl;
 
 
 	t_elapsed = std::chrono::high_resolution_clock::now() - t_start;
