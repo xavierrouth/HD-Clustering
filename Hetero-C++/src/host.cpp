@@ -262,38 +262,7 @@ int main(int argc, char** argv)
 	// Initialize cluster hvs.
 	std::cout << "Init cluster hvs:" << std::endl;
 	auto InitialEncodingDAG_t_start = std::chrono::high_resolution_clock::now();
-#if 0
-	for (int k = 0; k < N_CENTER; k++) {
-		__hypervector__<N_FEAT, hvtype> datapoint_hv = __hetero_hdc_create_hypervector<N_FEAT, hvtype>(1, (void*) initialize_hv<hvtype>, input_vectors + k * N_FEAT_PAD);
-		//hvtype* datapoint_hv_buffer = new hvtype[N_FEAT];
-		//*((__hypervector__<N_FEAT, hvtype> *) datapoint_hv_buffer) = datapoint_hv;
-		// Encode the first N_CENTER hypervectors and set them to be the clusters.
-	        __hypervector__<Dhv, hvtype> *cluster = ((__hypervector__<Dhv, hvtype> *) clusters) + k;
 
-
-#ifndef NODFG
-		void* initialize_DFG = __hetero_launch(
-			(void*) InitialEncodingDAG<Dhv, N_FEAT>,
-			3,
-			/* Input Buffers: 2*/ 
-			rp_matrix_buffer, rp_matrix_size,
-			&datapoint_hv, input_vector_size,
-			/* Output Buffers: 1*/ 
-			cluster, cluster_size,  //false,
-			1,
-			cluster, cluster_size //false
-		);
-
-		__hetero_wait(initialize_DFG);
-#else
-                InitialEncodingDAG<Dhv, N_FEAT>(
-		    (__hypermatrix__<Dhv, N_FEAT, hvtype> *) rp_matrix_buffer, rp_matrix_size,
-		    &datapoint_hv, input_vector_size,
-		    cluster, cluster_size
-                );
-#endif
-	}
-#else
 	__hetero_hdc_encoding_loop(
 		0, (void*) InitialEncodingDAG<Dhv, N_FEAT>,
 		N_CENTER, N_FEAT, N_FEAT_PAD,
@@ -301,7 +270,6 @@ int main(int argc, char** argv)
 		input_vectors, input_vector_size,
 		clusters, cluster_size
 	);
-#endif
 	auto InitialEncodingDAG_t_elapsed = std::chrono::high_resolution_clock::now() - InitialEncodingDAG_t_start;
 	long InitialEncodingDAG_mSec = std::chrono::duration_cast<std::chrono::milliseconds>(InitialEncodingDAG_t_elapsed).count();
 	std::cout << "InitialEncodingDAG: " << InitialEncodingDAG_mSec << " mSec" << std::endl;
