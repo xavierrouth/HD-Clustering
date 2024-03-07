@@ -294,7 +294,7 @@ int main(int argc, char** argv)
 			rp_matrix_buffer, rp_matrix_size,
 			input_vectors, input_vector_size,
 			clusters, clusters_size,
-			labels,
+			labels, labels_size,
 			encoded_hv_buffer, encoded_hv_size,
 			scores_buffer, scores_size
 		);
