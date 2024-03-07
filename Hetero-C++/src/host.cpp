@@ -262,7 +262,7 @@ int main(int argc, char** argv)
 	// Initialize cluster hvs.
 	std::cout << "Init cluster hvs:" << std::endl;
 	auto InitialEncodingDAG_t_start = std::chrono::high_resolution_clock::now();
-#if 1
+#if 0
 	for (int k = 0; k < N_CENTER; k++) {
 		__hypervector__<N_FEAT, hvtype> datapoint_hv = __hetero_hdc_create_hypervector<N_FEAT, hvtype>(1, (void*) initialize_hv<hvtype>, input_vectors + k * N_FEAT_PAD);
 		//hvtype* datapoint_hv_buffer = new hvtype[N_FEAT];
@@ -296,7 +296,7 @@ int main(int argc, char** argv)
 #else
 	__hetero_hdc_encoding_loop(
 		0, (void*) InitialEncodingDAG<Dhv, N_FEAT>,
-		N_SAMPLE, N_FEAT, N_FEAT_PAD, N_CENTER,
+		N_CENTER, N_FEAT, N_FEAT_PAD,
 		rp_matrix_buffer, rp_matrix_size,
 		input_vectors, input_vector_size,
 		clusters, cluster_size
