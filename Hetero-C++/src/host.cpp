@@ -265,7 +265,7 @@ int main(int argc, char** argv)
 
 	__hetero_hdc_encoding_loop(
 		0, (void*) InitialEncodingDAG<Dhv, N_FEAT>,
-		N_CENTER, N_FEAT, N_FEAT_PAD,
+		N_CENTER, N_CENTER, N_FEAT, N_FEAT_PAD,
 		rp_matrix_buffer, rp_matrix_size,
 		input_vectors, input_vector_size,
 		clusters, cluster_size
