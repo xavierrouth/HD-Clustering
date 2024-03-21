@@ -82,6 +82,12 @@ T initialize_rp_seed(size_t loop_index_var) {
 	}
 }
 
+extern "C" void run_hd_clustering(
+	int EPOCH,
+	hvtype* rp_matrix_buffer,
+	hvtype* input_vectors,
+	int* labels
+);
 
 int main(int argc, char** argv)
 {
@@ -94,12 +100,7 @@ int main(int argc, char** argv)
 
 	srand(time(NULL));
 
-
-
-
-
-
-    assert(argc == 2 && "Expected parameter");
+	assert(argc == 2 && "Expected parameter");
 	int EPOCH = std::atoi(argv[1]);
    
 	std::vector<int> X_data;
@@ -139,15 +140,11 @@ int main(int argc, char** argv)
 	assert(N_SAMPLE == y_data.size());
 	std::vector<hvtype> floatVec(X_data.begin(), X_data.end());
 	hvtype* input_vectors = floatVec.data();
-	// N_FEAT is number of entries per vector
-	size_t input_vector_size = N_FEAT * sizeof(hvtype); // Size of a single vector
 
 	int *labels = new int[N_SAMPLE]; // Does this need to be malloced?
 	for (int i = 0; i < N_SAMPLE; ++i) {
 		labels[i] = 0;
 	}
-	// N_SAMPLE is number of input vectors
-	size_t labels_size = N_SAMPLE * sizeof(int);
 
 	auto t_elapsed = std::chrono::high_resolution_clock::now() - t_start;
 	long mSec = std::chrono::duration_cast<std::chrono::milliseconds>(t_elapsed).count();
@@ -155,37 +152,6 @@ int main(int argc, char** argv)
 	std::cout << "Reading data took " << mSec << " mSec" << std::endl;
 
 	t_start = std::chrono::high_resolution_clock::now();
-
-	// Host allocated memory 
-	hvtype* encoded_hv_buffer = new hvtype[Dhv];
-	size_t encoded_hv_size = Dhv * sizeof(hvtype);
-
-
-	hvtype* update_hv_ptr = new hvtype[Dhv];
-	size_t update_hv_size = Dhv * sizeof(hvtype);
-	
-	// Read from during clustering, updated from clusters_temp.
-	__hypermatrix__<N_CENTER, Dhv, hvtype> *clusters = new __hypermatrix__<N_CENTER, Dhv, hvtype>();//__hetero_hdc_hypermatrix<N_CENTER, Dhv, hvtype>();
-	size_t cluster_size = Dhv * sizeof(hvtype);
-	size_t clusters_size = N_CENTER * Dhv * sizeof(hvtype);
-
-	// Gets written into during clustering, then is used to update 'clusters' at the end.
-	__hypermatrix__<N_CENTER, Dhv, hvtype> clusters_temp = __hetero_hdc_hypermatrix<N_CENTER, Dhv, hvtype>();
-
-	// Temporarily store scores, allows us to split score calcuation into a separte task.
-
-
-	SCORES_TYPE* scores_buffer = new SCORES_TYPE[N_CENTER];
-	size_t scores_size = N_CENTER * sizeof(SCORES_TYPE);
-
-
-
-
-
-
-
-	size_t rp_matrix_size = N_FEAT * Dhv * sizeof(hvtype);
-
 
 	__hypervector__<Dhv, hvtype> rp_seed = __hetero_hdc_create_hypervector<Dhv, hvtype>(0, (void*) initialize_rp_seed<hvtype>);	
 
@@ -234,8 +200,6 @@ int main(int argc, char** argv)
     delete[] shifted_buffer;
     delete[] row_buffer;
 
-
-
     //rp_matrix =   *  (__hypermatrix__<Dhv, N_FEAT, hvtype>*) rp_matrix_buffer;
 
 #else
@@ -256,44 +220,57 @@ int main(int argc, char** argv)
     auto rp_matrix_buffer = &rp_matrix;
 #endif
 
+	run_hd_clustering(EPOCH, rp_matrix_buffer, input_vectors, labels);
 
+	t_elapsed = std::chrono::high_resolution_clock::now() - t_start;
+	mSec = std::chrono::duration_cast<std::chrono::milliseconds>(t_elapsed).count();
+	std::cout << "\nReading data took " << mSec1 << " mSec" << std::endl;    
+	std::cout << "Execution (" << EPOCH << " epochs)  took " << mSec << " mSec" << std::endl;
+	
+	std::ofstream myfile("out.txt");
+	for(int i = 0; i < N_SAMPLE; i++){
+		myfile << y_data[i] << " " << labels[i] << std::endl;
+	}
+#ifndef NODFG
+	__hpvm__cleanup();
+#endif
+	return 0;
+}
 
-
-	// Initialize cluster hvs.
-	std::cout << "Init cluster hvs:" << std::endl;
-	auto InitialEncodingDAG_t_start = std::chrono::high_resolution_clock::now();
+extern "C" void run_hd_clustering(
+	int EPOCH,
+	hvtype* rp_matrix_buffer,
+	hvtype* input_vectors,
+	int* labels
+) {
+	size_t input_vector_size = N_FEAT * sizeof(hvtype);
+	size_t labels_size = N_SAMPLE * sizeof(int);
+	hvtype encoded_hv_buffer[Dhv];
+	size_t encoded_hv_size = Dhv * sizeof(hvtype);
+	hvtype update_hv_ptr[Dhv];
+	size_t update_hv_size = Dhv * sizeof(hvtype);
+	__hypermatrix__<N_CENTER, Dhv, hvtype> clusters = __hetero_hdc_hypermatrix<N_CENTER, Dhv, hvtype>();
+	size_t cluster_size = Dhv * sizeof(hvtype);
+	size_t clusters_size = N_CENTER * Dhv * sizeof(hvtype);
+	__hypermatrix__<N_CENTER, Dhv, hvtype> clusters_temp = __hetero_hdc_hypermatrix<N_CENTER, Dhv, hvtype>();
+	SCORES_TYPE scores_buffer[N_CENTER];
+	size_t scores_size = N_CENTER * sizeof(SCORES_TYPE);
+	size_t rp_matrix_size = N_FEAT * Dhv * sizeof(hvtype);
 
 	__hetero_hdc_encoding_loop(
 		0, (void*) InitialEncodingDAG<Dhv, N_FEAT>,
 		N_CENTER, N_CENTER, N_FEAT, N_FEAT_PAD,
 		rp_matrix_buffer, rp_matrix_size,
 		input_vectors, input_vector_size,
-		clusters, cluster_size
+		&clusters, cluster_size
 	);
-	auto InitialEncodingDAG_t_elapsed = std::chrono::high_resolution_clock::now() - InitialEncodingDAG_t_start;
-	long InitialEncodingDAG_mSec = std::chrono::duration_cast<std::chrono::milliseconds>(InitialEncodingDAG_t_elapsed).count();
-	std::cout << "InitialEncodingDAG: " << InitialEncodingDAG_mSec << " mSec" << std::endl;
 
-
-	std::cout << "\nDone init cluster hvs:" << std::endl;
-
-	#if DEBUG
-	for (int i = 0; i < N_CENTER; i++) {
-		__hypervector__<Dhv, hvtype> cluster_temp = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, hvtype>(*clusters, N_CENTER, Dhv, i);
-		std::cout << i << " ";
-		print_hv<Dhv, hvtype>(cluster_temp);
-	}
-	#endif
-
-	auto inference_t_start = std::chrono::high_resolution_clock::now();
 	for (int i = 0; i < EPOCH; i++) {
-		std::cout << "Epoch: #" << i << std::endl;
-
 		__hetero_hdc_inference_loop(12, (void*) root_node<Dhv, N_CENTER, N_SAMPLE, N_FEAT>,
 			N_SAMPLE, N_FEAT, N_FEAT_PAD,
 			rp_matrix_buffer, rp_matrix_size,
 			input_vectors, input_vector_size,
-			clusters, clusters_size,
+			&clusters, clusters_size,
 			labels, labels_size,
 			encoded_hv_buffer, encoded_hv_size,
 			scores_buffer, scores_size
@@ -312,37 +289,10 @@ int main(int argc, char** argv)
 
 			#ifdef HAMMING_DIST
 			__hypervector__<Dhv, hvtype> cluster_norm = __hetero_hdc_sign<Dhv, hvtype>(cluster_temp);
-			__hetero_hdc_set_matrix_row(*clusters, cluster_norm, k);
+			__hetero_hdc_set_matrix_row(clusters, cluster_norm, k);
 			#else
-			__hetero_hdc_set_matrix_row(*clusters, cluster_temp, k);
+			__hetero_hdc_set_matrix_row(clusters, cluster_temp, k);
 			#endif
 		} 
-
-		
 	}
-	auto inference_t_elapsed = std::chrono::high_resolution_clock::now() - inference_t_start;
-	long inference_mSec = std::chrono::duration_cast<std::chrono::milliseconds>(inference_t_elapsed).count();
-	std::cout << "inference: " << inference_mSec << " mSec" << std::endl;
-
-
-	t_elapsed = std::chrono::high_resolution_clock::now() - t_start;
-	
-	mSec = std::chrono::duration_cast<std::chrono::milliseconds>(t_elapsed).count();
-	
-
-	std::cout << "\nReading data took " << mSec1 << " mSec" << std::endl;    
-	std::cout << "Execution (" << EPOCH << " epochs)  took " << mSec << " mSec" << std::endl;
-	
-	std::ofstream myfile("out.txt");
-	for(int i = 0; i < N_SAMPLE; i++){
-		myfile << y_data[i] << " " << labels[i] << std::endl;
-	}
-#ifndef NODFG
-	__hpvm__cleanup();
-#endif
-	return 0;
 }
-
-
-
-
