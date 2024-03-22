@@ -243,6 +243,21 @@ extern "C" void run_hd_clustering(
 	hvtype* input_vectors,
 	int* labels
 ) {
+	//std::ofstream file_rp_matrix_buffer("rp_matrix_buffer.csv");
+	//std::ofstream file_input_vectors("input_vectors.csv");
+	//for (int i = 0; i < N_FEAT *  Dhv; ++i) {
+	//	file_rp_matrix_buffer << rp_matrix_buffer[i];
+	//	if (i + 1 < N_FEAT *  Dhv) {
+	//		file_rp_matrix_buffer << ",";
+	//	}
+	//}
+	//for (int i = 0; i < N_SAMPLE * N_FEAT_PAD; ++i) {
+	//	file_input_vectors << input_vectors[i];
+	//	if (i + 1 < N_SAMPLE * N_FEAT_PAD) {
+	//		file_input_vectors << ",";
+	//	}
+	//}
+
 	size_t input_vector_size = N_FEAT * sizeof(hvtype);
 	size_t labels_size = N_SAMPLE * sizeof(int);
 	hvtype encoded_hv_buffer[Dhv];
