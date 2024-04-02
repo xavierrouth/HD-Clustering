@@ -265,6 +265,7 @@ extern "C" void run_hd_clustering(
 	hvtype update_hv_ptr[Dhv];
 	size_t update_hv_size = Dhv * sizeof(hvtype);
 	__hypermatrix__<N_CENTER, Dhv, hvtype> clusters = __hetero_hdc_hypermatrix<N_CENTER, Dhv, hvtype>();
+	static __hypervector__<Dhv, hvtype> encoded_hvs[N_SAMPLE];
 	size_t cluster_size = Dhv * sizeof(hvtype);
 	size_t clusters_size = N_CENTER * Dhv * sizeof(hvtype);
 	__hypermatrix__<N_CENTER, Dhv, hvtype> clusters_temp = __hetero_hdc_hypermatrix<N_CENTER, Dhv, hvtype>();
@@ -274,11 +275,14 @@ extern "C" void run_hd_clustering(
 
 	__hetero_hdc_encoding_loop(
 		0, (void*) InitialEncodingDAG<Dhv, N_FEAT>,
-		N_CENTER, N_CENTER, N_FEAT, N_FEAT_PAD,
+		N_SAMPLE, N_CENTER, N_FEAT, N_FEAT_PAD,
 		rp_matrix_buffer, rp_matrix_size,
 		input_vectors, input_vector_size,
-		&clusters, cluster_size
+		encoded_hvs, cluster_size
 	);
+	for (int i = 0; i < N_CENTER; ++i) {
+		__hetero_hdc_set_matrix_row(clusters, encoded_hvs[i], i);
+	}
 
 	for (int i = 0; i < EPOCH; i++) {
 		__hetero_hdc_inference_loop(12, (void*) root_node<Dhv, N_CENTER, N_SAMPLE, N_FEAT>,
@@ -295,7 +299,7 @@ extern "C" void run_hd_clustering(
 		
 		for (int j = 0; j < N_SAMPLE; j++) {
 			__hypervector__<Dhv, hvtype> update_hv =  __hetero_hdc_get_matrix_row<N_CENTER, Dhv, hvtype>(clusters_temp, N_CENTER, Dhv, labels[j]);
-			update_hv = __hetero_hdc_sum<Dhv, hvtype>(update_hv, *(__hypervector__<Dhv, hvtype> *) encoded_hv_buffer); // May need an instrinsic for this.
+			update_hv = __hetero_hdc_sum<Dhv, hvtype>(update_hv, encoded_hvs[j]); // May need an instrinsic for this.
 			__hetero_hdc_set_matrix_row<N_CENTER, Dhv, hvtype>(clusters_temp, update_hv, labels[j]); // How do we normalize?
 		} 
 		for (int k = 0; k < N_CENTER; k++) {
