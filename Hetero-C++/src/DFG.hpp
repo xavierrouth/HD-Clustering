@@ -1,24 +1,9 @@
-#pragma once
-
 #include <hpvm_hdc.h>
 #include <heterocc.h>
-#include <iostream>
 
 #define HAMMING_DIST
 
-#undef D
-#undef N_FEATURES
-#undef K
-
-typedef int binary;
-
-#ifdef ACCEL
 typedef int16_t hvtype;
-#else
-//typedef float hvtype;
-typedef int16_t hvtype;
-#endif
-
 
 #ifdef HAMMING_DIST
 #define SCORES_TYPE hvtype
@@ -37,28 +22,16 @@ typedef int16_t hvtype;
 // RP encoding reduces N_features -> D 
 
 template <typename T>
-T zero_hv(size_t loop_index_var) {
-	return 0;
-}
+T zero_hv(size_t loop_index_var) { return 0; }
 
 
 template<int D, int N_FEATURES>
-void  rp_encoding_node(/* Input Buffers: 2*/
-        __hypermatrix__<D, N_FEATURES, hvtype>* rp_matrix_ptr, size_t rp_matrix_size, // __hypermatrix__<N_FEATURES, D, binary>
-        __hypervector__<N_FEATURES, hvtype>* input_datapoint_ptr, size_t input_datapoint_size, // __hypervector__<N_FEATURES, int> 
-        /* Output Buffers: 1*/
-        __hypervector__<D, hvtype>* output_hv_ptr, size_t output_hv_size) { // __hypervector__<D, binary>
+void  rp_encoding_node(/* Input Buffers: 2*/ __hypermatrix__<D, N_FEATURES, hvtype>* rp_matrix_ptr, size_t rp_matrix_size, __hypervector__<N_FEATURES, hvtype>* input_datapoint_ptr, size_t input_datapoint_size, /* Output Buffers: 1*/ __hypervector__<D, hvtype>* output_hv_ptr, size_t output_hv_size) {
     
 #ifndef NODFG
     void* section = __hetero_section_begin();
 
-
-    void* task = __hetero_task_begin(
-        /* Input Buffers: 2*/ 3, rp_matrix_ptr, rp_matrix_size, input_datapoint_ptr, input_datapoint_size, output_hv_ptr, output_hv_size,
-        /* Parameters: 0*/
-        /* Output Buffers: 1*/ 1, output_hv_ptr, output_hv_size,
-        "inner_rp_encoding_task"
-    );
+    void* task = __hetero_task_begin(/* Input Buffers: 2*/ 3, rp_matrix_ptr, rp_matrix_size, input_datapoint_ptr, input_datapoint_size, output_hv_ptr, output_hv_size, /* Parameters: 0*/ /* Output Buffers: 1*/ 1, output_hv_ptr, output_hv_size, "inner_rp_encoding_task");
 
     __hetero_hint(DEVICE);
 #endif
@@ -78,7 +51,6 @@ void  rp_encoding_node(/* Input Buffers: 2*/
     *output_hv_ptr = bipolar_encoded_hv;
     #endif
 
-
 #ifndef NODFG
     __hetero_task_end(task); 
 
@@ -87,27 +59,14 @@ void  rp_encoding_node(/* Input Buffers: 2*/
     return;
 }
 
-
-
 // RP encoding reduces N_features -> D 
 template<int D, int N_FEATURES>
-void  rp_encoding_node_copy(/* Input Buffers: 2*/
-        __hypermatrix__<D, N_FEATURES, hvtype>* rp_matrix_ptr, size_t rp_matrix_size, 
-        __hypervector__<N_FEATURES, hvtype>* input_datapoint_ptr, size_t input_datapoint_size, 
-        /* Output Buffers: 1*/
-        __hypervector__<D, hvtype>* output_hv_ptr, size_t output_hv_size) {
+void  rp_encoding_node_copy(/* Input Buffers: 2*/ __hypermatrix__<D, N_FEATURES, hvtype>* rp_matrix_ptr, size_t rp_matrix_size, __hypervector__<N_FEATURES, hvtype>* input_datapoint_ptr, size_t input_datapoint_size, /* Output Buffers: 1*/ __hypervector__<D, hvtype>* output_hv_ptr, size_t output_hv_size) {
     
 #ifndef NODFG
     void* section = __hetero_section_begin();
 
-
-
-    void* task = __hetero_task_begin(
-        /* Input Buffers: 2*/ 3, rp_matrix_ptr, rp_matrix_size, input_datapoint_ptr, input_datapoint_size, output_hv_ptr, output_hv_size,
-        /* Parameters: 0*/
-        /* Output Buffers: 1*/ 1, output_hv_ptr, output_hv_size,
-        "inner_rp_encoding_copy_task"
-    );
+    void* task = __hetero_task_begin(/* Input Buffers: 2*/ 3, rp_matrix_ptr, rp_matrix_size, input_datapoint_ptr, input_datapoint_size, output_hv_ptr, output_hv_size, /* Parameters: 0*/ /* Output Buffers: 1*/ 1, output_hv_ptr, output_hv_size, "inner_rp_encoding_copy_task");
 
     __hetero_hint(DEVICE);
 #endif
@@ -128,7 +87,6 @@ void  rp_encoding_node_copy(/* Input Buffers: 2*/
     *output_hv_ptr = bipolar_encoded_hv;
     #endif
 
-
 #ifndef NODFG
     __hetero_task_end(task); 
 
@@ -140,22 +98,12 @@ void  rp_encoding_node_copy(/* Input Buffers: 2*/
 
 // RP encoding reduces N_features -> D 
 template<int D, int N_FEATURES>
-void  InitialEncodingDAG(/* Input Buffers: 2*/
-        __hypermatrix__<D, N_FEATURES, hvtype>* rp_matrix_ptr, size_t rp_matrix_size, 
-        __hypervector__<N_FEATURES, hvtype>* input_datapoint_ptr, size_t input_datapoint_size, 
-        /* Output Buffers: 1*/
-        __hypervector__<D, hvtype>* output_hv_ptr, size_t output_hv_size) {
-
+void  InitialEncodingDAG(/* Input Buffers: 2*/ __hypermatrix__<D, N_FEATURES, hvtype>* rp_matrix_ptr, size_t rp_matrix_size, __hypervector__<N_FEATURES, hvtype>* input_datapoint_ptr, size_t input_datapoint_size, /* Output Buffers: 1*/ __hypervector__<D, hvtype>* output_hv_ptr, size_t output_hv_size) {
     
 #ifndef NODFG
     void* section = __hetero_section_begin();
 
-    void* task = __hetero_task_begin(
-        /* Input Buffers: 2*/ 3, rp_matrix_ptr, rp_matrix_size, input_datapoint_ptr, input_datapoint_size, output_hv_ptr, output_hv_size,
-        /* Parameters: 0*/
-        /* Output Buffers: 1*/ 1, output_hv_ptr, output_hv_size,
-        "initial_encoding_wrapper"
-    );
+    void* task = __hetero_task_begin(/* Input Buffers: 2*/ 3, rp_matrix_ptr, rp_matrix_size, input_datapoint_ptr, input_datapoint_size, output_hv_ptr, output_hv_size, /* Parameters: 0*/ /* Output Buffers: 1*/ 1, output_hv_ptr, output_hv_size, "initial_encoding_wrapper");
 #endif
 
     // Specifies that the following node is performing an HDC Encoding step
@@ -177,27 +125,16 @@ void  InitialEncodingDAG(/* Input Buffers: 2*/
 
 // In the streaming implementation, this runs for each encoded HV, so N_VEC * EPOCHs times.
 template<int D, int K, int N_VEC>
-void __attribute__ ((noinline)) clustering_node(/* Input Buffers: 3*/
-        __hypervector__<D, hvtype>* encoded_hv_ptr, size_t encoded_hv_size, 
-        __hypermatrix__<K, D, hvtype>* clusters_ptr, size_t clusters_size, 
-        __hypervector__<K, SCORES_TYPE>* scores_ptr, size_t scores_size, // Used as Local var.
-        /* Output Buffers: 1*/
-        int* labels, size_t labels_size) { // Mapping of HVs to Clusters. int[N_VEC]
+void __attribute__ ((noinline)) clustering_node(/* Input Buffers: 3*/ __hypervector__<D, hvtype>* encoded_hv_ptr, size_t encoded_hv_size, __hypermatrix__<K, D, hvtype>* clusters_ptr, size_t clusters_size, __hypervector__<K, SCORES_TYPE>* scores_ptr, size_t scores_size, /* Output Buffers: 1*/ int* labels, size_t labels_size) { // Mapping of HVs to Clusters. int[N_VEC]
 
 #ifndef NODFG
     void* section = __hetero_section_begin();
 #endif
 
-
     { // Scoping hack in order to have 'scores' defined in each task.
-
-
     
 #ifndef NODFG
-    void* task1 = __hetero_task_begin(
-        /* Input Buffers: 4*/ 3, encoded_hv_ptr, encoded_hv_size, clusters_ptr, clusters_size, scores_ptr, scores_size, 
-        /* Output Buffers: 1*/ 1,  scores_ptr, scores_size, "clustering_scoring_task"
-    );
+    void* task1 = __hetero_task_begin(/* Input Buffers: 4*/ 3, encoded_hv_ptr, encoded_hv_size, clusters_ptr, clusters_size, scores_ptr, scores_size, /* Output Buffers: 1*/ 1,  scores_ptr, scores_size, "clustering_scoring_task");
 
     __hetero_hint(DEVICE);
 #endif
@@ -222,10 +159,7 @@ void __attribute__ ((noinline)) clustering_node(/* Input Buffers: 3*/
     
     {
 #ifndef NODFG
-   void* task2 = __hetero_task_begin(
-        /* Input Buffers: 1*/ 3, encoded_hv_ptr, encoded_hv_size, scores_ptr, scores_size, labels, labels_size,
-        /* Output Buffers: 1*/ 2, encoded_hv_ptr, encoded_hv_size, labels, labels_size, "find_score_and_label_task"
-    );
+   void* task2 = __hetero_task_begin(/* Input Buffers: 1*/ 3, encoded_hv_ptr, encoded_hv_size, scores_ptr, scores_size, labels, labels_size, /* Output Buffers: 1*/ 2, encoded_hv_ptr, encoded_hv_size, labels, labels_size, "find_score_and_label_task");
 
     __hetero_hint(DEVICE);
 #endif
@@ -257,8 +191,6 @@ void __attribute__ ((noinline)) clustering_node(/* Input Buffers: 3*/
     //labels[encoded_hv_idx] = max_idx;
     *labels = max_idx;
 
-
-
 #ifndef NODFG
     __hetero_task_end(task2);
 #endif
@@ -274,17 +206,10 @@ void __attribute__ ((noinline)) clustering_node(/* Input Buffers: 3*/
 
 // RP Matrix Node Generation. Performs element wise rotation on ID matrix rows and stores into destination buffer.
 template <int D,  int N_FEATURES>
-void gen_rp_matrix(/* Input Buffers*/
-        __hypervector__<D, hvtype>* rp_seed_vector, size_t  rp_seed_vector_size,
-        __hypervector__<D, hvtype>* row_buffer, size_t  row_buffer_size,
-        __hypermatrix__<N_FEATURES, D, hvtype>* shifted_matrix, size_t  shifted_matrix_size,
-        __hypermatrix__<D, N_FEATURES, hvtype>* transposed_matrix, size_t  transposed_matrix_size
-        ){
-
+void gen_rp_matrix(/* Input Buffers*/ __hypervector__<D, hvtype>* rp_seed_vector, size_t  rp_seed_vector_size, __hypervector__<D, hvtype>* row_buffer, size_t  row_buffer_size, __hypermatrix__<N_FEATURES, D, hvtype>* shifted_matrix, size_t  shifted_matrix_size, __hypermatrix__<D, N_FEATURES, hvtype>* transposed_matrix, size_t  transposed_matrix_size){
 
 #ifndef NODFG
     void* root_section = __hetero_section_begin();
-
 
     void* root_task = __hetero_task_begin(
             /* Num Inputs */ 4,
@@ -300,7 +225,6 @@ void gen_rp_matrix(/* Input Buffers*/
     void* wrapper_section = __hetero_section_begin();
 #endif
 
-
     {
 #ifndef NODFG
     void* gen_shifted_task = __hetero_task_begin(
@@ -315,18 +239,12 @@ void gen_rp_matrix(/* Input Buffers*/
     __hetero_hint(DEVICE);
 #endif
 
-    //std::cout << "Gen Shifted Task Begin" <<std::endl;
 	// Each row is just a wrap shift of the seed.
-
 	for (int i = 0; i < N_FEATURES; i++) {
 		__hypervector__<D, hvtype>  row = __hetero_hdc_wrap_shift<D, hvtype>(*rp_seed_vector, i);
         *row_buffer = row;
         __hetero_hdc_set_matrix_row<N_FEATURES, D, hvtype>(*shifted_matrix, row, i);
-
 	} 
-
-    //std::cout << "Gen Shifted Task End" <<std::endl;
-
 
 #ifndef NODFG
    __hetero_task_end(gen_shifted_task); 
@@ -335,27 +253,17 @@ void gen_rp_matrix(/* Input Buffers*/
 
    {
 #ifndef NODFG
-    void* transpose_task = __hetero_task_begin(
-         /* Num Inputs */ 2,
-         shifted_matrix,   shifted_matrix_size,
-         transposed_matrix,   transposed_matrix_size,
-         /* Num Outputs */ 1,
-         transposed_matrix,   transposed_matrix_size,
-         "gen_tranpose_task");
+    void* transpose_task = __hetero_task_begin(/* Num Inputs */ 2, shifted_matrix,   shifted_matrix_size, transposed_matrix,   transposed_matrix_size, /* Num Outputs */ 1, transposed_matrix,   transposed_matrix_size, "gen_tranpose_task");
 
     __hetero_hint(DEVICE);
 #endif
 
-    //std::cout << "Transpose Begin" <<std::endl;
 	 *transposed_matrix = __hetero_hdc_matrix_transpose<N_FEATURES, D, hvtype>(*shifted_matrix, N_FEATURES, D);
-
-    //std::cout << "Transpose Task End" <<std::endl;
 
 #ifndef NODFG
    __hetero_task_end(transpose_task); 
 #endif
    }
-
 
 #ifndef NODFG
    __hetero_section_end(wrapper_section);
@@ -368,31 +276,12 @@ void gen_rp_matrix(/* Input Buffers*/
 
 
 template <int D, int K, int N_VEC, int N_FEATURES>
-void encoding_and_inference_node(
-/* Input buffers: 4*/ 
-                __hypermatrix__<D, N_FEATURES, hvtype>* rp_matrix_ptr, size_t rp_matrix_size, 
-                __hypervector__<N_FEATURES, hvtype>* datapoint_vec_ptr, size_t datapoint_vec_size, // Features
-                __hypermatrix__<K, D, hvtype>* clusters_ptr, size_t clusters_size, 
-int* labels, size_t labels_size,
-                /* Local Vars: 2*/
-                __hypervector__<D, hvtype>* encoded_hv_ptr, size_t encoded_hv_size, 
-                
-
-                __hypervector__<K, SCORES_TYPE>* scores_ptr, size_t scores_size
-                ){
-
+void encoding_and_inference_node(/* Input buffers: 4*/ __hypermatrix__<D, N_FEATURES, hvtype>* rp_matrix_ptr, size_t rp_matrix_size, __hypervector__<N_FEATURES, hvtype>* datapoint_vec_ptr, size_t datapoint_vec_size, __hypermatrix__<K, D, hvtype>* clusters_ptr, size_t clusters_size, int* labels, size_t labels_size, /* Local Vars: 2*/ __hypervector__<D, hvtype>* encoded_hv_ptr, size_t encoded_hv_size, __hypervector__<K, SCORES_TYPE>* scores_ptr, size_t scores_size){
 #ifndef NODFG
     void* root_section = __hetero_section_begin();
-
-
     
     // Re-encode each iteration.
-    void* encoding_task = __hetero_task_begin(
-        /* Input Buffers: 3 */ 3, rp_matrix_ptr, rp_matrix_size, datapoint_vec_ptr, datapoint_vec_size, 
-                                encoded_hv_ptr, encoded_hv_size,
-        /* Output Buffers: 1 */ 1, encoded_hv_ptr, encoded_hv_size,
-        "encoding_task"  
-    );
+    void* encoding_task = __hetero_task_begin(/* Input Buffers: 3 */ 3, rp_matrix_ptr, rp_matrix_size, datapoint_vec_ptr, datapoint_vec_size, encoded_hv_ptr, encoded_hv_size, /* Output Buffers: 1 */ 1, encoded_hv_ptr, encoded_hv_size, "encoding_task");
 #endif
 
     rp_encoding_node<D, N_FEATURES>(rp_matrix_ptr, rp_matrix_size, datapoint_vec_ptr, datapoint_vec_size, encoded_hv_ptr, encoded_hv_size);
@@ -400,16 +289,7 @@ int* labels, size_t labels_size,
 #ifndef NODFG
     __hetero_task_end(encoding_task);
 
-    void* clustering_task = __hetero_task_begin(
-        /* Input Buffers: 5 */  4, 
-                                encoded_hv_ptr, encoded_hv_size, 
-                                clusters_ptr, clusters_size, 
-                                labels, labels_size,
-                                scores_ptr, scores_size,
-        /* Output Buffers: 1 */ 2, encoded_hv_ptr, encoded_hv_size, 
- labels, labels_size, 
-        "clustering_task"  
-    );
+    void* clustering_task = __hetero_task_begin(/* Input Buffers: 5 */  4, encoded_hv_ptr, encoded_hv_size, clusters_ptr, clusters_size, labels, labels_size, scores_ptr, scores_size, /* Output Buffers: 1 */ 2, encoded_hv_ptr, encoded_hv_size, labels, labels_size, "clustering_task");
 #endif
 
     clustering_node<D, K, N_VEC>(encoded_hv_ptr, encoded_hv_size, clusters_ptr, clusters_size, scores_ptr, scores_size,  labels, labels_size); 
@@ -425,49 +305,16 @@ int* labels, size_t labels_size,
 
 // Dimensionality, Clusters, data point vectors, features per.
 template <int D, int K, int N_VEC, int N_FEATURES>
-void root_node( /* Input buffers: 3*/ 
-                __hypermatrix__<D, N_FEATURES, hvtype>* rp_matrix_ptr, size_t rp_matrix_size, 
-                __hypervector__<N_FEATURES, hvtype>* datapoint_vec_ptr, size_t datapoint_vec_size, // Features
-                __hypermatrix__<K, D, hvtype>* clusters_ptr, size_t clusters_size, 
-                /* Output Buffers: 2*/
-                int* labels, size_t labels_size,
-                /* Local Vars: 2*/
-                __hypervector__<D, hvtype>* encoded_hv_ptr, size_t encoded_hv_size, 
-                __hypervector__<K, SCORES_TYPE>* scores_ptr, size_t scores_size
-){
+void root_node( /* Input buffers: 3*/ __hypermatrix__<D, N_FEATURES, hvtype>* rp_matrix_ptr, size_t rp_matrix_size, __hypervector__<N_FEATURES, hvtype>* datapoint_vec_ptr, size_t datapoint_vec_size, __hypermatrix__<K, D, hvtype>* clusters_ptr, size_t clusters_size, /* Output Buffers: 2*/ int* labels, size_t labels_size, /* Local Vars: 2*/ __hypervector__<D, hvtype>* encoded_hv_ptr, size_t encoded_hv_size, __hypervector__<K, SCORES_TYPE>* scores_ptr, size_t scores_size){
 
 #ifndef NODFG
     void* root_section = __hetero_section_begin();
-
-
     
     // Re-encode each iteration.
-    void* inference_task = __hetero_task_begin(
-            /* Input Buffers:  */ 6, 
-            rp_matrix_ptr, rp_matrix_size, 
-            datapoint_vec_ptr,  datapoint_vec_size,
-            clusters_ptr,  clusters_size, 
-            labels,  labels_size,
-            encoded_hv_ptr, encoded_hv_size, 
-            scores_ptr, scores_size,
-
-            /* Output Buffers: 1 */ 2, 
-            encoded_hv_ptr, encoded_hv_size,
-            labels,  labels_size,
-            "inference_task"  
-            );
+    void* inference_task = __hetero_task_begin(/* Input Buffers:  */ 6, rp_matrix_ptr, rp_matrix_size, datapoint_vec_ptr,  datapoint_vec_size, clusters_ptr,  clusters_size, labels,  labels_size, encoded_hv_ptr, encoded_hv_size, scores_ptr, scores_size, /* Output Buffers: 1 */ 2, encoded_hv_ptr, encoded_hv_size, labels,  labels_size, "inference_task"  );
 #endif
 
-    __hetero_hdc_inference(
-            /* Num Formal Parameters */ 14,
-            (void*) encoding_and_inference_node<D, K, N_VEC, N_FEATURES>,
-            rp_matrix_ptr, rp_matrix_size, 
-            datapoint_vec_ptr,  datapoint_vec_size,
-            clusters_ptr,  clusters_size, 
-            labels,  labels_size,
-            encoded_hv_ptr, encoded_hv_size, 
-            scores_ptr, scores_size
-            );
+    __hetero_hdc_inference( /* Num Formal Parameters */ 14, (void*) encoding_and_inference_node<D, K, N_VEC, N_FEATURES>, rp_matrix_ptr, rp_matrix_size, datapoint_vec_ptr,  datapoint_vec_size, clusters_ptr,  clusters_size,  labels,  labels_size, encoded_hv_ptr, encoded_hv_size, scores_ptr, scores_size);
     
 #ifndef NODFG
     __hetero_task_end(inference_task);

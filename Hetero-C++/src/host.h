@@ -1,13 +1,6 @@
-#include <cmath>
 #include <fstream>
-#include <sstream>
 #include <string>
-#include <algorithm>
-#include <iterator>
-#include <time.h>
 #include <chrono>
-#include <vector>
-#include <unistd.h>
 #include <iostream>
 #include <fstream>
 
@@ -28,8 +21,6 @@
 
 #define N_FEAT_PAD		(N_FEAT + PAD)	//feature per input (e.g., isolet: 624, ucihar 568)
 
-//int EPOCH = 10;
-bool shuffled = false;
 std::string X_data_path = "../dataset/isolet_train_trainX.bin";
 std::string y_data_path = "../dataset/isolet_train_trainY.bin";
 
