@@ -285,6 +285,7 @@ extern "C" void run_hd_clustering(
 	}
 
 	for (int i = 0; i < EPOCH; i++) {
+		auto t_start = std::chrono::high_resolution_clock::now();
 		__hetero_hdc_inference_loop(12, (void*) root_node<Dhv, N_CENTER, N_SAMPLE, N_FEAT>,
 			N_SAMPLE, N_FEAT, N_FEAT_PAD,
 			rp_matrix_buffer, rp_matrix_size,
@@ -294,6 +295,9 @@ extern "C" void run_hd_clustering(
 			encoded_hv_buffer, encoded_hv_size,
 			scores_buffer, scores_size
 		);
+		auto t_end = std::chrono::high_resolution_clock::now();
+		long mSec = std::chrono::duration_cast<std::chrono::milliseconds>(t_end-t_start).count();
+		std::cout << "Inference: " << mSec << " mSec\n";
 			
 		// then update clusters and copy clusters_tmp to clusters, 
 		
