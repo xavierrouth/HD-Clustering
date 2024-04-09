@@ -36,10 +36,8 @@ void rp_encoding_node(/* Input Buffers: 2*/ __hypermatrix__<D, N_FEATURES, hvtyp
     __hetero_hint(DEVICE);
 #endif
     
-    __hypervector__<D, hvtype> encoded_hv = __hetero_hdc_create_hypervector<D, hvtype>(0, (void*) zero_hv<hvtype>);
-    *output_hv_ptr = encoded_hv;
 
-    encoded_hv = __hetero_hdc_matmul<D, N_FEATURES, hvtype>(*input_datapoint_ptr, *rp_matrix_ptr); 
+    __hypervector__<D, hvtype> encoded_hv = __hetero_hdc_matmul<D, N_FEATURES, hvtype>(*input_datapoint_ptr, *rp_matrix_ptr); 
     // Uses the output_hv_ptr for the buffer. So that we can lower to 
     // additional tasks. We should do an optimization in the bufferization
     // analysis to re-use the same buffer (especially those coming from the
