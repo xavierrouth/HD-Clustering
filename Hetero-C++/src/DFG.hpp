@@ -24,9 +24,9 @@ typedef int16_t hvtype;
 template <typename T>
 T zero_hv(size_t loop_index_var) { return 0; }
 
-
-template<int D, int N_FEATURES>
-void  rp_encoding_node(/* Input Buffers: 2*/ __hypermatrix__<D, N_FEATURES, hvtype>* rp_matrix_ptr, size_t rp_matrix_size, __hypervector__<N_FEATURES, hvtype>* input_datapoint_ptr, size_t input_datapoint_size, /* Output Buffers: 1*/ __hypervector__<D, hvtype>* output_hv_ptr, size_t output_hv_size) {
+// Need multiple copies because of HPVM limitations, so add unused template parameter.
+template<int D, int N_FEATURES, int unused>
+void rp_encoding_node(/* Input Buffers: 2*/ __hypermatrix__<D, N_FEATURES, hvtype>* rp_matrix_ptr, size_t rp_matrix_size, __hypervector__<N_FEATURES, hvtype>* input_datapoint_ptr, size_t input_datapoint_size, /* Output Buffers: 1*/ __hypervector__<D, hvtype>* output_hv_ptr, size_t output_hv_size) {
     
 #ifndef NODFG
     void* section = __hetero_section_begin();
@@ -61,43 +61,6 @@ void  rp_encoding_node(/* Input Buffers: 2*/ __hypermatrix__<D, N_FEATURES, hvty
 
 // RP encoding reduces N_features -> D 
 template<int D, int N_FEATURES>
-void  rp_encoding_node_copy(/* Input Buffers: 2*/ __hypermatrix__<D, N_FEATURES, hvtype>* rp_matrix_ptr, size_t rp_matrix_size, __hypervector__<N_FEATURES, hvtype>* input_datapoint_ptr, size_t input_datapoint_size, /* Output Buffers: 1*/ __hypervector__<D, hvtype>* output_hv_ptr, size_t output_hv_size) {
-    
-#ifndef NODFG
-    void* section = __hetero_section_begin();
-
-    void* task = __hetero_task_begin(/* Input Buffers: 2*/ 3, rp_matrix_ptr, rp_matrix_size, input_datapoint_ptr, input_datapoint_size, output_hv_ptr, output_hv_size, /* Parameters: 0*/ /* Output Buffers: 1*/ 1, output_hv_ptr, output_hv_size, "inner_rp_encoding_copy_task");
-
-    __hetero_hint(DEVICE);
-#endif
-
-    __hypervector__<D, hvtype> encoded_hv = __hetero_hdc_create_hypervector<D, hvtype>(0, (void*) zero_hv<hvtype>);
-    *output_hv_ptr = encoded_hv;
-    
-    encoded_hv = __hetero_hdc_matmul<D, N_FEATURES, hvtype>(*input_datapoint_ptr, *rp_matrix_ptr); 
-    *output_hv_ptr = encoded_hv;
-    // Uses the output_hv_ptr for the buffer. So that we can lower to 
-    // additional tasks. We should do an optimization in the bufferization
-    // analysis to re-use the same buffer (especially those coming from the
-    // formal parameters) to enable more of these tasks to become parallel loops.
-    
-
-    #ifdef HAMMING_DIST
-    __hypervector__<D, hvtype> bipolar_encoded_hv = __hetero_hdc_sign<D, hvtype>(encoded_hv);
-    *output_hv_ptr = bipolar_encoded_hv;
-    #endif
-
-#ifndef NODFG
-    __hetero_task_end(task); 
-
-    __hetero_section_end(section);
-#endif
-    return;
-}
-
-
-// RP encoding reduces N_features -> D 
-template<int D, int N_FEATURES>
 void  InitialEncodingDAG(/* Input Buffers: 2*/ __hypermatrix__<D, N_FEATURES, hvtype>* rp_matrix_ptr, size_t rp_matrix_size, __hypervector__<N_FEATURES, hvtype>* input_datapoint_ptr, size_t input_datapoint_size, /* Output Buffers: 1*/ __hypervector__<D, hvtype>* output_hv_ptr, size_t output_hv_size) {
     
 #ifndef NODFG
@@ -107,7 +70,7 @@ void  InitialEncodingDAG(/* Input Buffers: 2*/ __hypermatrix__<D, N_FEATURES, hv
 #endif
 
     // Specifies that the following node is performing an HDC Encoding step
-    __hetero_hdc_encoding(6, (void*)  rp_encoding_node_copy<D, N_FEATURES>, rp_matrix_ptr, rp_matrix_size, input_datapoint_ptr, input_datapoint_size, output_hv_ptr, output_hv_size);
+    __hetero_hdc_encoding(6, (void*)  rp_encoding_node<D, N_FEATURES, 0>, rp_matrix_ptr, rp_matrix_size, input_datapoint_ptr, input_datapoint_size, output_hv_ptr, output_hv_size);
 
 #ifndef NODFG
     __hetero_task_end(task); 
@@ -284,7 +247,7 @@ void encoding_and_inference_node(/* Input buffers: 4*/ __hypermatrix__<D, N_FEAT
     void* encoding_task = __hetero_task_begin(/* Input Buffers: 3 */ 3, rp_matrix_ptr, rp_matrix_size, datapoint_vec_ptr, datapoint_vec_size, encoded_hv_ptr, encoded_hv_size, /* Output Buffers: 1 */ 1, encoded_hv_ptr, encoded_hv_size, "encoding_task");
 #endif
 
-    rp_encoding_node<D, N_FEATURES>(rp_matrix_ptr, rp_matrix_size, datapoint_vec_ptr, datapoint_vec_size, encoded_hv_ptr, encoded_hv_size);
+    rp_encoding_node<D, N_FEATURES, 1>(rp_matrix_ptr, rp_matrix_size, datapoint_vec_ptr, datapoint_vec_size, encoded_hv_ptr, encoded_hv_size);
 
 #ifndef NODFG
     __hetero_task_end(encoding_task);
