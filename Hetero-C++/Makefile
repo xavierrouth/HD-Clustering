@@ -29,7 +29,7 @@ host-cpu: build/output.ll
 
 # Clang Frontend to IR
 build/host.cpu.ll: streaming-src/host.cpp
-	$(HPVM_BIN)/clang++ -DHPVM -DDEVICE=hpvm::CPU_TARGET $(CFLAGS) $(INCLUDES) -S -emit-llvm $^ -o $@ 
+	$(HPVM_BIN)/clang++ -DHPVM -DDEVICE=hpvm::CPU_TARGET $(CFLAGS) $(INCLUDES) -S -emit-llvm $^ -o $@
 #$HPVM_BIN/clang++ -O1 -I$OPENCL_PATH/include/CL -L$OPENCL_LIB_PATH -I$HPVM_ROOT/projects/hetero-c++/test/include/ -lm -lrt -pthread -lOpenCL  $INCLUDE_FLAG -fenable-matrix    $PREFIX.cpp -S -emit-llvm -o $PREFIX.ll
 
 # GenHPVM for HDC only and mem2reg
@@ -39,7 +39,7 @@ build/hpvm.genhdc.cpu.ll: build/host.cpu.ll
 
 # Lower HDC Intrinsics
 build/hdc.lowered.cpu.ll: build/hpvm.genhdc.cpu.ll #hpvm. # -enable-hcc
-	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/LLVMHPVMHDC.so -vector-block-dim=64 -lower-hdc  -dce -simplifycfg $< -S -o $@ 
+	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/LLVMHPVMHDC.so -vector-block-dim=1 -lower-hdc  -dce -simplifycfg $< -S -o $@ 
 	
 # HCC -> HPVM
 build/hpvmc.cpu.ll: build/hdc.lowered.cpu.ll
@@ -65,7 +65,7 @@ build/output.ll: build/hpvmcompiled.cpu.ll # build/cpu_test.hpvmcompiled.ll
 ### ---------- ASIC?  ---------------
 
 # Generate Executable
-host-accel: build/output.ll
+host-accel: build/output.accel.ll
 	$(HPVM_INSTALL_DIR)/build/bin/clang++ -lm -lrt -pthread -O2 $< -o $@ 
 #
 
@@ -99,7 +99,7 @@ build/hpvmcompiled.accel.ll: build/hpvm.accel.ll
 HPVM_RT := $(HPVM_BUILD_DIR)/tools/hpvm/projects/hpvm-rt/hpvm-rt.bc
 
 # LINK HPVM RT and DCE
-build/output.ll: build/hpvmcompiled.accel.ll # build/cpu_test.hpvmcompiled.ll
+build/output.accel.ll: build/hpvmcompiled.accel.ll # build/cpu_test.hpvmcompiled.ll
 	$(HPVM_INSTALL_DIR)/build/bin/llvm-link $< $(HPVM_RT) -S -o $@ 
 	$(HPVM_INSTALL_DIR)/build/bin/opt -dce -globaldce $< -S -o $<
 

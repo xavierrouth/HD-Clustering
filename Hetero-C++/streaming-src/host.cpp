@@ -10,8 +10,7 @@
 #include <cassert>
 #include <cmath>
 
-#define FPGA
-// #define HAMMING_DIST
+// #define FPGA
 #define OFFLOAD_RP_GEN
 
 
@@ -174,7 +173,6 @@ int main(int argc, char** argv)
 
 	// Temporarily store scores, allows us to split score calcuation into a separte task.
 
-
 	__hypervector__<Dhv, SCORES_TYPE> scores = __hetero_hdc_hypervector<Dhv, SCORES_TYPE>();
 	SCORES_TYPE* scores_buffer = new SCORES_TYPE[N_CENTER];
 	size_t scores_size = N_CENTER * sizeof(SCORES_TYPE);
@@ -294,15 +292,10 @@ int main(int argc, char** argv)
 
 			__hypervector__<N_FEAT, hvtype> datapoint_hv = __hetero_hdc_create_hypervector<N_FEAT, hvtype>(1, (void*) initialize_hv<hvtype>, input_vectors + j * N_FEAT_PAD);
 
+			//printf("before launch\n");
 			// Root node is: Encoding -> Clustering for a single HV.
 			void *DFG = __hetero_launch(
-#ifdef FPGA
-				(void*) flattened_root<Dhv, N_CENTER, N_SAMPLE, N_FEAT>,
-
-#else
 				(void*) root_node<Dhv, N_CENTER, N_SAMPLE, N_FEAT>,
-#endif
-
 				/* Input Buffers: 4*/ 10,
 				rp_matrix_buffer, rp_matrix_size, //false,
 				&datapoint_hv, input_vector_size, //true,
@@ -312,24 +305,12 @@ int main(int argc, char** argv)
 				encoded_hv_buffer, encoded_hv_size,// false,
 				scores_buffer, scores_size,
                 update_hv_ptr, update_hv_size,
-				j, 0, 
+				j, 
+				0, 
 				/* Output Buffers: 1*/ 
-#ifdef FPGA
-				labels, labels_size,
-#else
-
-                // Directly just push the pointer offset for the location to update
 				(labels+j), sizeof(int),
-#endif
-				2,
-
-#ifdef FPGA
-				labels, labels_size,
-#else
-
-                // Directly just push the pointer offset for the location to update
+				2, 
 				(labels+j), sizeof(int),
-#endif
 				&clusters_temp, clusters_size
 			);
 			__hetero_wait(DFG); 
@@ -339,10 +320,9 @@ int main(int argc, char** argv)
 		}
 		// then update clusters and copy clusters_tmp to clusters, 
 
-		// TODO: Move to DAG
 		std::cout << "after root node\n";
 		
-		// TODO: Just swap pointers?? 
+
 		for (int k = 0; k < N_CENTER; k++) {
 			// set temp_clusters -> clusters
 			__hypervector__<Dhv, hvtype> cluster_temp = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, hvtype>(clusters_temp, N_CENTER, Dhv, k);

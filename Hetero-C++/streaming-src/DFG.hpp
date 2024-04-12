@@ -4,14 +4,14 @@
 #include <heterocc.h>
 #include <iostream>
 
-//#define HAMMING_DIST
+#define HAMMING_DIST
 
 #undef D
 #undef N_FEATURES
 #undef K
 
 typedef int binary;
-typedef float hvtype;
+typedef int hvtype;
 
 
 #ifdef HAMMING_DIST
@@ -36,12 +36,13 @@ T zero_hv(size_t loop_index_var) {
 }
 
 
+// RP encoding reduces N_features -> D 
 template<int D, int N_FEATURES>
 void  rp_encoding_node(/* Input Buffers: 2*/
-        __hypermatrix__<D, N_FEATURES, hvtype>* /* __restrict */ rp_matrix_ptr, size_t rp_matrix_size, // __hypermatrix__<N_FEATURES, D, binary>
-        __hypervector__<N_FEATURES, hvtype>* /* __restrict */ input_datapoint_ptr, size_t input_datapoint_size, // __hypervector__<N_FEATURES, int> 
+        __hypermatrix__<D, N_FEATURES, hvtype>* /* __restrict */ rp_matrix_ptr, size_t rp_matrix_size, 
+        __hypervector__<N_FEATURES, hvtype>* /* __restrict */ input_datapoint_ptr, size_t input_datapoint_size, 
         /* Output Buffers: 1*/
-        __hypervector__<D, hvtype>* /* __restrict */ output_hv_ptr, size_t output_hv_size) { // __hypervector__<D, binary>
+        __hypervector__<D, hvtype>* /* __restrict */ output_hv_ptr, size_t output_hv_size) {
     
     void* section = __hetero_section_begin();
 
@@ -49,22 +50,21 @@ void  rp_encoding_node(/* Input Buffers: 2*/
         /* Input Buffers: 2*/ 3, rp_matrix_ptr, rp_matrix_size, input_datapoint_ptr, input_datapoint_size, output_hv_ptr, output_hv_size,
         /* Parameters: 0*/
         /* Output Buffers: 1*/ 1, output_hv_ptr, output_hv_size,
-        "inner_rp_encoding_task"
+        "inner_rp_encoding_copy_task"
     );
 
-    __hypervector__<D, hvtype> encoded_hv = __hetero_hdc_create_hypervector<D, hvtype>(0, (void*) zero_hv<hvtype>);
-    *output_hv_ptr = encoded_hv;
+            //printf("rp encoding\n");
 
-    encoded_hv = __hetero_hdc_matmul<D, N_FEATURES, hvtype>(*input_datapoint_ptr, *rp_matrix_ptr); 
+    
+    *output_hv_ptr = __hetero_hdc_matmul<D, N_FEATURES, hvtype>(*input_datapoint_ptr, *rp_matrix_ptr); 
     // Uses the output_hv_ptr for the buffer. So that we can lower to 
     // additional tasks. We should do an optimization in the bufferization
     // analysis to re-use the same buffer (especially those coming from the
     // formal parameters) to enable more of these tasks to become parallel loops.
-    *output_hv_ptr = encoded_hv;
     
+
     #ifdef HAMMING_DIST
-    __hypervector__<D, int> bipolar_encoded_hv = __hetero_hdc_sign<D, int>(encoded_hv);
-    *output_hv_ptr = bipolar_encoded_hv;
+    *output_hv_ptr = __hetero_hdc_sign<D, hvtype>(*output_hv_ptr);
     #endif
 
 
@@ -93,12 +93,8 @@ void  rp_encoding_node_copy(/* Input Buffers: 2*/
         "inner_rp_encoding_copy_task"
     );
 
-
-    __hypervector__<D, hvtype> encoded_hv = __hetero_hdc_create_hypervector<D, hvtype>(0, (void*) zero_hv<hvtype>);
-    *output_hv_ptr = encoded_hv;
     
-    encoded_hv = __hetero_hdc_matmul<D, N_FEATURES, hvtype>(*input_datapoint_ptr, *rp_matrix_ptr); 
-    *output_hv_ptr = encoded_hv;
+    *output_hv_ptr = __hetero_hdc_matmul<D, N_FEATURES, hvtype>(*input_datapoint_ptr, *rp_matrix_ptr); 
     // Uses the output_hv_ptr for the buffer. So that we can lower to 
     // additional tasks. We should do an optimization in the bufferization
     // analysis to re-use the same buffer (especially those coming from the
@@ -106,8 +102,7 @@ void  rp_encoding_node_copy(/* Input Buffers: 2*/
     
 
     #ifdef HAMMING_DIST
-    __hypervector__<D, int> bipolar_encoded_hv = __hetero_hdc_sign<D, int>(encoded_hv);
-    *output_hv_ptr = bipolar_encoded_hv;
+    *output_hv_ptr = __hetero_hdc_sign<D, int>(*output_hv_ptr);
     #endif
 
 
@@ -174,16 +169,14 @@ void __attribute__ ((noinline)) clustering_node(/* Input Buffers: 3*/
         /* Output Buffers: 1*/ 1,  scores_ptr, scores_size, "clustering_scoring_task"
     );
 
+                //printf("clustering task 1\n");
 
-    __hypervector__<D, hvtype> encoded_hv = *encoded_hv_ptr;
-    __hypermatrix__<K, D, hvtype> clusters = *clusters_ptr;
 
-    __hypervector__<K, SCORES_TYPE> scores = *scores_ptr; // Precision of these scores might need to be increased.
 
     #ifdef HAMMING_DIST
-    *scores_ptr =  __hetero_hdc_hamming_distance<K, D, hvtype>(encoded_hv, clusters);
+    *scores_ptr =  __hetero_hdc_hamming_distance<K, D, hvtype>(*encoded_hv_ptr, *clusters_ptr);
     #else
-    *scores_ptr = __hetero_hdc_cossim<K, D, hvtype>(encoded_hv, clusters);
+    *scores_ptr = __hetero_hdc_cossim<K, D, hvtype>(*encoded_hv_ptr, *clusters_ptr);
     #endif
 
    __hetero_task_end(task1);
@@ -197,7 +190,6 @@ void __attribute__ ((noinline)) clustering_node(/* Input Buffers: 3*/
     );
 
     
-    __hypervector__<K, hvtype> scores = *scores_ptr;
     int max_idx = 0;
 
     // IF using hamming distance:
@@ -346,6 +338,8 @@ int* labels, size_t labels_size,
         "encoding_task"  
     );
 
+        
+
     rp_encoding_node<D, N_FEATURES>(rp_matrix_ptr, rp_matrix_size, datapoint_vec_ptr, datapoint_vec_size, encoded_hv_ptr, encoded_hv_size);
 
     __hetero_task_end(encoding_task);
@@ -363,6 +357,8 @@ int* labels, size_t labels_size,
  labels, labels_size, 
         "clustering_task"  
     );
+
+
 
     clustering_node<D, K, N_VEC>(encoded_hv_ptr, encoded_hv_size, clusters_ptr, clusters_size, temp_clusters_ptr, temp_clusters_size, scores_ptr, scores_size,  update_hv_ptr, update_hv_size, labels_index, labels, labels_size); 
 
@@ -442,6 +438,8 @@ void root_node( /* Input buffers: 4*/
         "update_task"  
     );
 
+        //printf("update task\n");
+
     {
 
         *update_hv_ptr =  __hetero_hdc_get_matrix_row<K, D, hvtype>(*temp_clusters_ptr, K, D, *labels);
@@ -454,160 +452,4 @@ void root_node( /* Input buffers: 4*/
 
     __hetero_section_end(root_section);
     return;
-}
-
-
-
-
-template <int D, int K, int N_VEC, int N_FEATURES>
-void flattened_root( /* Input buffers: 4*/ 
-                __hypermatrix__<D, N_FEATURES, hvtype>* /* __restrict */ rp_matrix_ptr, size_t rp_matrix_size, 
-                __hypervector__<N_FEATURES, hvtype>* /* __restrict */ datapoint_vec_ptr, size_t datapoint_vec_size, // Features
-                __hypermatrix__<K, D, hvtype>* /* __restrict */ clusters_ptr, size_t clusters_size, 
-                __hypermatrix__<K, D, hvtype>* /* __restrict */ temp_clusters_ptr, size_t temp_clusters_size, // ALSO AN OUTPUT
-                /* Local Vars: 3*/
-                __hypervector__<D, hvtype>* /* __restrict */ encoded_hv_ptr, size_t encoded_hv_size, 
-                __hypervector__<K, hvtype>* /* __restrict */ scores_ptr, size_t scores_size,
-                __hypervector__<D, hvtype>* /* __restrict */ update_hv_ptr, size_t update_hv_size,  // Used in second stage of clustering node for extracting and accumulating
-                /* Parameters: 2*/
-                int labels_index, int convergence_threshold, // <- not used.
-                /* Output Buffers: 2*/
-                int* labels, size_t labels_size){
-
-    void* root_section = __hetero_section_begin();
-
-    void* root_task = __hetero_task_begin(
-        /* Input Buffers: 3*/ 10, encoded_hv_ptr, encoded_hv_size,
-				 rp_matrix_ptr, rp_matrix_size,
-				 datapoint_vec_ptr, datapoint_vec_size,
-				 encoded_hv_ptr, encoded_hv_size,
-				 clusters_ptr, clusters_size,
-				 scores_ptr, scores_size,
-				 labels, labels_size, 
-				 temp_clusters_ptr, temp_clusters_size, 
-				 update_hv_ptr, update_hv_size,
-				 labels_index,
-        /* Parameters: 0*/
-        /* Output Buffers: 1*/4, encoded_hv_ptr, encoded_hv_size,
-				 scores_ptr, scores_size,
-				 labels, labels_size, 
-				 temp_clusters_ptr, temp_clusters_size, 
-        "root_task"
-    );
-
-    void* fpga_section = __hetero_section_begin();
-
-    void* encoding_task = __hetero_task_begin(
-        /* Input Buffers: 3*/ 3, rp_matrix_ptr, rp_matrix_size, 
-				 datapoint_vec_ptr, datapoint_vec_size, 
-				 encoded_hv_ptr, encoded_hv_size,
-        /* Parameters: 0*/
-        /* Output Buffers: 1*/ 1, encoded_hv_ptr, encoded_hv_size,
-        "flattened_encoding_task"
-    );
-    {
-
-        __hetero_hint(DEVICE);
-
-
-        // Initialize matrix state with 0
-        __hypervector__<D, hvtype> encoded_hv = __hetero_hdc_create_hypervector<D, hvtype>(0, (void*) zero_hv<hvtype>);
-        *encoded_hv_ptr = encoded_hv;
-
-        encoded_hv = __hetero_hdc_matmul<D, N_FEATURES, hvtype>(*datapoint_vec_ptr, *rp_matrix_ptr); 
-        *encoded_hv_ptr = encoded_hv;
-
-
-    #ifdef HAMMING_DIST
-    __hypervector__<D, int> bipolar_encoded_hv = __hetero_hdc_sign<D, int>(encoded_hv);
-    *encoded_hv_ptr = bipolar_encoded_hv;
-    #endif
-
-
-    }
-    __hetero_task_end(encoding_task); 
-
-
-    void* clustering_task_1 = __hetero_task_begin(
-        /* Input Buffers: 4*/ 3, encoded_hv_ptr, encoded_hv_size, 
-				 clusters_ptr, clusters_size, 
-				 scores_ptr, scores_size, 
-        /* Output Buffers: 1*/ 1,  scores_ptr, scores_size, "flattened_clustering_scoring_task"
-    );
-    {
-
-        //std::cout << "clustering task 1" << std::endl;
-        __hetero_hint(DEVICE);
-
-        __hypervector__<D, hvtype> encoded_hv = *encoded_hv_ptr;
-        __hypermatrix__<K, D, hvtype> clusters = *clusters_ptr;
-
-        __hypervector__<K, SCORES_TYPE> scores = *scores_ptr; // Precision of these scores might need to be increased.
-
-#ifdef HAMMING_DIST
-        *scores_ptr =  __hetero_hdc_hamming_distance<K, D, hvtype>(encoded_hv, clusters);
-#else
-        *scores_ptr = __hetero_hdc_cossim<K, D, hvtype>(encoded_hv, clusters);
-#endif
-
-
-    }
-   __hetero_task_end(clustering_task_1);
-
-   void* clustering_task_2 = __hetero_task_begin(
-           /* Input Buffers: 5*/ 6, scores_ptr, scores_size, 
-				    labels, labels_size, 
-				    encoded_hv_ptr, encoded_hv_size, 
-				    temp_clusters_ptr, temp_clusters_size, 
-				    update_hv_ptr, update_hv_size,
-           /* paramters: 1*/        labels_index,
-           /* Output Buffers: 2*/2, temp_clusters_ptr, temp_clusters_size, 
-				    labels, labels_size, "flattened_find_score_and_update_task"
-           );
-   {
-
-
-       __hetero_hint(DEVICE);
-       //std::cout << "clustering task 2" << std::endl;
-       __hypervector__<K, hvtype> scores = *scores_ptr;
-       int max_idx = 0;
-
-       // IF using hamming distance:
-
-#ifdef HAMMING_DIST
-       hvtype max_score = (hvtype) D - (*scores_ptr)[0][0]; // I think this is probably causing issues.
-#else
-       hvtype max_score = (hvtype) (*scores_ptr)[0][0];
-#endif
-
-       for (int k = 0; k < K; k++) {
-#ifdef HAMMING_DIST
-           hvtype score = (hvtype) D - (*scores_ptr)[0][k];
-#else
-           hvtype score = (hvtype) (*scores_ptr)[0][k];
-#endif
-           //std::cout << score << " ";
-           if (score > max_score) {
-
-               max_score = score;
-               max_idx = k;
-           }
-
-       } 
-       // Write labels
-       labels[labels_index] = max_idx;
-
-       *update_hv_ptr =  __hetero_hdc_get_matrix_row<K, D, hvtype>(*temp_clusters_ptr, K, D, max_idx);
-       *update_hv_ptr = __hetero_hdc_sum<D, hvtype>(*update_hv_ptr, *encoded_hv_ptr); // May need an instrinsic for this.
-       __hetero_hdc_set_matrix_row<K, D, hvtype>(*temp_clusters_ptr, *update_hv_ptr, max_idx); // How do we normalize?
-
-
-   }
-   __hetero_task_end(clustering_task_2);
-
-   __hetero_section_end(fpga_section);
-
-   __hetero_task_end(root_task); 
-
-   __hetero_section_end(root_section);
 }
