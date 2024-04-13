@@ -3,7 +3,7 @@
 
 #define HAMMING_DIST
 
-typedef int16_t hvtype;
+typedef int hvtype;
 
 #ifdef HAMMING_DIST
 #define SCORES_TYPE hvtype
@@ -33,7 +33,7 @@ void rp_encoding_node(/* Input Buffers: 2*/ __hypermatrix__<D, N_FEATURES, hvtyp
 
     void* task = __hetero_task_begin(/* Input Buffers: 2*/ 3, rp_matrix_ptr, rp_matrix_size, input_datapoint_ptr, input_datapoint_size, output_hv_ptr, output_hv_size, /* Parameters: 0*/ /* Output Buffers: 1*/ 1, output_hv_ptr, output_hv_size, "inner_rp_encoding_task");
 
-    __hetero_hint(DEVICE);
+    //__hetero_hint(DEVICE);
 #endif
     
     __hypervector__<D, hvtype> encoded_hv = __hetero_hdc_create_hypervector<D, hvtype>(0, (void*) zero_hv<hvtype>);
@@ -199,7 +199,7 @@ void gen_rp_matrix(/* Input Buffers*/ __hypervector__<D, hvtype>* rp_seed_vector
          shifted_matrix,   shifted_matrix_size,
          "gen_shifted_matrix_task");
 
-    __hetero_hint(DEVICE);
+    //__hetero_hint(DEVICE);
 #endif
 
 	// Each row is just a wrap shift of the seed.
@@ -218,7 +218,7 @@ void gen_rp_matrix(/* Input Buffers*/ __hypervector__<D, hvtype>* rp_seed_vector
 #ifndef NODFG
     void* transpose_task = __hetero_task_begin(/* Num Inputs */ 2, shifted_matrix,   shifted_matrix_size, transposed_matrix,   transposed_matrix_size, /* Num Outputs */ 1, transposed_matrix,   transposed_matrix_size, "gen_tranpose_task");
 
-    __hetero_hint(DEVICE);
+    //__hetero_hint(DEVICE);
 #endif
 
 	 *transposed_matrix = __hetero_hdc_matrix_transpose<N_FEATURES, D, hvtype>(*shifted_matrix, N_FEATURES, D);
