@@ -11,8 +11,10 @@ CUDA_PATH:=/software/cuda-9.1
 OPENCL_PATH:=$(CUDA_PATH)
 OPENCL_LIB_PATH:=$(OPENCL_PATH/lib64)
 
-CFLAGS := -O1 -fenable-matrix -fno-discard-value-names -fno-exceptions -lm -lrt -pthread -lOpenCL
+CFLAGS :=  -O0 -Xclang -disable-O0-optnone -fenable-matrix -fno-discard-value-names -fno-exceptions -lm -lrt -pthread -lOpenCL
 
+
+O1_FLAGS = -targetlibinfo -tti -tbaa -scoped-noalias-aa -assumption-cache-tracker -profile-summary-info -forceattrs -inferattrs -ipsccp -called-value-propagation -globalopt -domtree -mem2reg -deadargelim -basic-aa -aa -loops -lazy-branch-prob -lazy-block-freq -opt-remark-emitter -instcombine -simplifycfg -basiccg -globals-aa -prune-eh -always-inline -function-attrs  -memoryssa -early-cse-memssa -speculative-execution -lazy-value-info -jump-threading -correlated-propagation -libcalls-shrinkwrap -branch-prob -block-freq -pgo-memop-opt -tailcallelim -reassociate -loop-simplify -lcssa-verification -lcssa -scalar-evolution -loop-rotate -licm -loop-unswitch -indvars -loop-idiom -loop-deletion -loop-unroll -memdep -memcpyopt -sccp -demanded-bits -bdce -dse -postdomtree -adce -barrier -rpo-function-attrs -globaldce -float2int -loop-accesses -loop-distribute -loop-vectorize -loop-load-elim -alignment-from-assumptions -strip-dead-prototypes -loop-sink -instsimplify -div-rem-pairs -verify -ee-instrument -early-cse -lower-expect
 # PARAMETERS := -DHPVM -DDEVICE=hpvm::CPU_TARGET
 #
 #
@@ -90,7 +92,7 @@ build/host.cpu.ll: src/host.cpp src/DFG.hpp src/host.h
 
 # GenHPVM for HDC only and mem2reg
 build/hpvm.genhdc.cpu.ll: build/host.cpu.ll
-	$(HPVM_BIN)/opt -mem2reg -enable-new-pm=0 -load $(HPVM_LIB)/HPVMGenHPVM.so -genhpvm -hpvm-hdc-only $< -S -o $@
+	$(HPVM_BIN)/opt -mem2reg $(O1_FLAGS) -enable-new-pm=0 -load $(HPVM_LIB)/HPVMGenHPVM.so -genhpvm -hpvm-hdc-only $< -S -o $@
 # $OPT -mem2reg -enable-new-pm=0 -load $HPVM_LIB/HPVMGenHPVM.so -genhpvm  -hpvm-hdc-only $PREFIX.ll -S -o $PREFIX.genhdc.hpvm.ll
 
 # Lower HDC Intrinsics
