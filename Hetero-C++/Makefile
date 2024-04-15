@@ -82,7 +82,7 @@ build/hdc.lowered.accel.ll: build/hpvm.genhdc.accel.ll #hpvm. # -enable-hcc
 ### ---------- CPU ---------------
 
 # Generate Executable
-host-cpu: build/output.ll
+host-cpu: build/output.cpu.ll
 	$(HPVM_INSTALL_DIR)/build/bin/clang++ -lm -lrt -lOpenCL -pthread -O2 $< -o $@ 
 #
 
@@ -116,7 +116,7 @@ build/hpvmcompiled.cpu.ll: build/hpvm.cpu.ll
 HPVM_RT := $(HPVM_BUILD_DIR)/tools/hpvm/projects/hpvm-rt/hpvm-rt.bc
 
 # LINK HPVM RT and DCE
-build/output.ll: build/hpvmcompiled.cpu.ll # build/cpu_test.hpvmcompiled.ll
+build/output.cpu.ll: build/hpvmcompiled.cpu.ll # build/cpu_test.hpvmcompiled.ll
 	$(HPVM_INSTALL_DIR)/build/bin/llvm-link $< $(HPVM_RT) -S -o $@ 
 	$(HPVM_INSTALL_DIR)/build/bin/opt -dce -globaldce $< -S -o $<
 
@@ -139,7 +139,7 @@ build/hdc_kernels.o: $(HPVM_INSTALL_DIR)/projects/hpvm-hdc/cuda-impl/hdc_kernels
 
 # Clang Frontend to IR
 build/host.cublas.ll: src/host.cpp src/DFG.hpp src/host.h
-	$(HPVM_BIN)/clang++ -DHPVM -DDEVICE=hpvm::CPU_TARGET $(CFLAGS) $(INCLUDES)  -fPIC -march=native -S -emit-llvm $< -o $@ 
+	$(HPVM_BIN)/clang++ -DNODFG -DHPVM -DDEVICE=hpvm::CPU_TARGET $(CFLAGS) $(INCLUDES)  -fPIC -march=native -S -emit-llvm $< -o $@ 
 #$HPVM_BIN/clang++ -O1 -I$OPENCL_PATH/include/CL -L$OPENCL_LIB_PATH -I$HPVM_ROOT/projects/hetero-c++/test/include/ -lm -lrt -pthread -lOpenCL  $INCLUDE_FLAG -fenable-matrix    $PREFIX.cpp -S -emit-llvm -o $PREFIX.ll
 
 # GenHPVM for HDC only and mem2reg
@@ -167,7 +167,7 @@ build/hpvmcompiled.cublas.ll: build/hpvm.cublas.ll
 HPVM_RT := $(HPVM_BUILD_DIR)/tools/hpvm/projects/hpvm-rt/hpvm-rt.bc
 
 # LINK HPVM RT and DCE
-build/output.ll: build/hpvmcompiled.cublas.ll # build/cpu_test.hpvmcompiled.ll
+build/output.cublas.ll: build/hpvmcompiled.cublas.ll # build/cpu_test.hpvmcompiled.ll
 	$(HPVM_INSTALL_DIR)/build/bin/llvm-link $< $(HPVM_RT) -S -o $@ 
 	$(HPVM_INSTALL_DIR)/build/bin/opt -dce -globaldce $< -S -o $<
 
@@ -179,7 +179,7 @@ host-gpu: build/output.gpu.ll
 
 # Clang Frontend to IR
 build/host.gpu.ll: src/host.cpp
-	$(HPVM_BIN)/clang++ -DHPVM -DDEVICE=hpvm::GPU_TARGET $(CFLAGS) $(INCLUDES) -S -emit-llvm $^ -o $@ 
+	$(HPVM_BIN)/clang++ -DHPVM -DDEVICE=hpvm::CPU_TARGET $(CFLAGS) $(INCLUDES) -S -emit-llvm $^ -o $@ 
 #$HPVM_BIN/clang++ -O1 -I$OPENCL_PATH/include/CL -L$OPENCL_LIB_PATH -I$HPVM_ROOT/projects/hetero-c++/test/include/ -lm -lrt -pthread -lOpenCL  $INCLUDE_FLAG -fenable-matrix    $PREFIX.cpp -S -emit-llvm -o $PREFIX.ll
 
 # GenHPVM for HDC only and mem2reg
