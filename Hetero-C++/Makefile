@@ -149,7 +149,7 @@ build/hpvm.genhdc.cublas.ll: build/host.cublas.ll
 
 # Lower HDC Intrinsics
 build/hdc.lowered.cublas.ll: build/hpvm.genhdc.cublas.ll #hpvm. # -enable-hcc
-	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/LLVMHPVMHDC.so -vector-block-dim=1 -lower-hdc  -compile-cublas -dce -simplifycfg $< -S -o $@ 
+	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/LLVMHPVMHDC.so -vector-block-dim=1 -lower-hdc  -compile-cublas -dce -simplifycfg $(O1_FLAGS) $< -S -o $@ 
 	
 # HCC -> HPVM
 build/hpvmc.cublas.ll: build/hdc.lowered.cublas.ll
@@ -250,4 +250,4 @@ build/output.fpga.ll: build/hpvm.host.fpga.ll
 .PHONY: clean
 
 clean:
-	rm -rf *.dot build/*.ll build/* host-gpu host-cpu host-accel host-sim
+	rm -rf *.dot build/*.ll build/* host-gpu host-cpu host-accel host-sim host-cublas

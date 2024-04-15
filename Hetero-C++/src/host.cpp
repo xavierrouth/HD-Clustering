@@ -13,6 +13,7 @@
 #define SCORES_TYPE float
 #endif
 
+
 void datasetBinaryRead(std::vector<int> &data, std::string path){
 	std::ifstream file_(path, std::ios::in | std::ios::binary);
 	assert(file_.is_open() && "Couldn't open file!");
@@ -48,6 +49,11 @@ T initialize_rp_seed(size_t loop_index_var) {
 template <typename T>
 T copy(T* vec, size_t loop_index_var) {
 	return vec[loop_index_var];
+}
+
+template <typename T>
+T zero(size_t loop_index_var) {
+	return 0;
 }
 
 
@@ -186,7 +192,12 @@ extern "C" void run_hd_clustering(int EPOCH, hvtype* rp_matrix_buffer, hvtype* i
 
 	size_t cluster_size = Dhv * sizeof(hvtype);
 	size_t clusters_size = N_CENTER * Dhv * sizeof(hvtype);
-	__hypermatrix__<N_CENTER, Dhv, hvtype> clusters_temp = __hetero_hdc_hypermatrix<N_CENTER, Dhv, hvtype>();
+
+	__hypermatrix__<N_CENTER, Dhv, hvtype> clusters_temp = __hetero_hdc_create_hypermatrix<N_CENTER, Dhv, hvtype>(0, (void*) zero<hvtype>);
+
+
+	// __hypermatrix__<N_CENTER, Dhv, hvtype> clusters_temp = __hetero_hdc_hypermatrix<N_CENTER, Dhv, hvtype>();
+
     //SCORES_TYPE scores_buffer[N_CENTER];
     __hypervector__<N_CENTER, SCORES_TYPE> scores = __hetero_hdc_hypervector<N_CENTER,  SCORES_TYPE>();
     auto scores_buffer = __hetero_hdc_get_handle<N_CENTER,  SCORES_TYPE>(scores);
@@ -194,27 +205,40 @@ extern "C" void run_hd_clustering(int EPOCH, hvtype* rp_matrix_buffer, hvtype* i
 	size_t rp_matrix_size = N_FEAT * Dhv * sizeof(hvtype);
 
 	__hetero_hdc_encoding_loop(0, (void*) InitialEncodingDAG<Dhv, N_FEAT>, N_SAMPLE, N_CENTER, N_FEAT, N_FEAT_PAD, rp_matrix_buffer, rp_matrix_size, input_vectors, input_vector_size, encoded_hvs_handle, cluster_size);
+    printf("Encoding loop completed!\n");
+
 	for (int i = 0; i < N_CENTER; ++i) {
         auto encoded_hv_i = __hetero_hdc_get_matrix_row<N_SAMPLE, Dhv, hvtype>(encoded_hvs, N_SAMPLE, Dhv, i);
 		__hetero_hdc_set_matrix_row(clusters, encoded_hv_i, i);
 	}
 
+
+
 	std::cout << "Starting clustering\n";
 	for (int i = 0; i < EPOCH; i++) {
+		std::cout << "Starting EPOCH" << std::endl;
 		auto t_start = std::chrono::high_resolution_clock::now();
+
 		__hetero_hdc_inference_loop(12, (void*) root_node<Dhv, N_CENTER, N_SAMPLE, N_FEAT>, N_SAMPLE, N_FEAT, N_FEAT_PAD, rp_matrix_buffer, rp_matrix_size, input_vectors, input_vector_size, clusters_handle, clusters_size, labels, labels_size, encoded_hv_buffer, encoded_hv_size, scores_buffer, scores_size);
+
 		auto t_end = std::chrono::high_resolution_clock::now();
 		long mSec = std::chrono::duration_cast<std::chrono::milliseconds>(t_end-t_start).count();
-		std::cout << "Inference: " << mSec << " mSec\n";
+		std::cout << "Inference: " << mSec << " mSec" << std::endl;
+
 			
+        
 		// then update clusters and copy clusters_tmp to clusters, 
 		for (int j = 0; j < N_SAMPLE; j++) {
-			__hypervector__<Dhv, hvtype> update_hv =  __hetero_hdc_get_matrix_row<N_CENTER, Dhv, hvtype>(clusters_temp, N_CENTER, Dhv, labels[j]);
-
+            int label_j = labels[j];
+			__hypervector__<Dhv, hvtype> update_hv =  __hetero_hdc_get_matrix_row<N_CENTER, Dhv, hvtype>(clusters_temp, N_CENTER, Dhv, label_j);
             auto encoded_hv_j = __hetero_hdc_get_matrix_row<N_SAMPLE, Dhv, hvtype>(encoded_hvs, N_SAMPLE, Dhv, j);
-			update_hv = __hetero_hdc_sum<Dhv, hvtype>(update_hv, encoded_hv_j); // May need an instrinsic for this.
-			__hetero_hdc_set_matrix_row<N_CENTER, Dhv, hvtype>(clusters_temp, update_hv, labels[j]); // How do we normalize?
+			auto sum_hv =  __hetero_hdc_sum<Dhv, hvtype>(update_hv, encoded_hv_j); // May need an instrinsic for this.
+			__hetero_hdc_set_matrix_row<N_CENTER, Dhv, hvtype>(clusters_temp, sum_hv, label_j); // How do we normalize?
 		} 
+
+
+
+        
 		for (int k = 0; k < N_CENTER; k++) {
 			// set temp_clusters -> clusters
 			__hypervector__<Dhv, hvtype> cluster_temp = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, hvtype>(clusters_temp, N_CENTER, Dhv, k);

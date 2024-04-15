@@ -1,4 +1,5 @@
 #include <hpvm_hdc.h>
+#include <iostream>
 #include <heterocc.h>
 
 #define HAMMING_DIST
