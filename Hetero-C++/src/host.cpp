@@ -115,7 +115,7 @@ int main(int argc, char** argv) {
     __hypervector__<Dhv, hvtype> row = __hetero_hdc_hypervector<Dhv, hvtype>();
 
     auto rp_matrix_buffer = __hetero_hdc_get_handle<N_FEAT, Dhv, hvtype>(rp_matrix);
-    auto shifted_buffer = __hetero_hdc_get_handle<N_FEAT, Dhv, hvtype>(rp_matrix);
+    auto shifted_buffer = __hetero_hdc_get_handle<N_FEAT, Dhv, hvtype>(shifted);
     auto row_buffer = __hetero_hdc_get_handle<Dhv, hvtype>(row);
 
 
@@ -204,6 +204,7 @@ extern "C" void run_hd_clustering(int EPOCH, hvtype* rp_matrix_buffer, hvtype* i
 	size_t scores_size = N_CENTER * sizeof(SCORES_TYPE);
 	size_t rp_matrix_size = N_FEAT * Dhv * sizeof(hvtype);
 
+		auto t_start = std::chrono::high_resolution_clock::now();
 	__hetero_hdc_encoding_loop(0, (void*) InitialEncodingDAG<Dhv, N_FEAT>, N_SAMPLE, N_CENTER, N_FEAT, N_FEAT_PAD, rp_matrix_buffer, rp_matrix_size, input_vectors, input_vector_size, encoded_hvs_handle, cluster_size);
     printf("Encoding loop completed!\n");
 
@@ -211,6 +212,10 @@ extern "C" void run_hd_clustering(int EPOCH, hvtype* rp_matrix_buffer, hvtype* i
         auto encoded_hv_i = __hetero_hdc_get_matrix_row<N_SAMPLE, Dhv, hvtype>(encoded_hvs, N_SAMPLE, Dhv, i);
 		__hetero_hdc_set_matrix_row(clusters, encoded_hv_i, i);
 	}
+
+		auto t_end = std::chrono::high_resolution_clock::now();
+		long mSec = std::chrono::duration_cast<std::chrono::milliseconds>(t_end-t_start).count();
+		std::cout << "Encoding: " << mSec << " mSec" << std::endl;
 
 
 
@@ -230,6 +235,7 @@ extern "C" void run_hd_clustering(int EPOCH, hvtype* rp_matrix_buffer, hvtype* i
             break;
         }
 			
+		t_start = std::chrono::high_resolution_clock::now();
         
 		// then update clusters and copy clusters_tmp to clusters, 
 		for (int j = 0; j < N_SAMPLE; j++) {
@@ -254,5 +260,9 @@ extern "C" void run_hd_clustering(int EPOCH, hvtype* rp_matrix_buffer, hvtype* i
 			__hetero_hdc_set_matrix_row(clusters, cluster_temp, k);
 			#endif
 		} 
+
+		t_end = std::chrono::high_resolution_clock::now();
+		mSec = std::chrono::duration_cast<std::chrono::milliseconds>(t_end-t_start).count();
+		std::cout << "Update: " << mSec << " mSec" << std::endl;
 	}
 }
