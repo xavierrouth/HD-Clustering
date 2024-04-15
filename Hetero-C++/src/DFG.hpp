@@ -4,7 +4,19 @@
 
 #define HAMMING_DIST
 
-typedef int hvtype;
+#define PRINT_HV_DECL(ELEMTY) extern "C" void cu_rt_print_hv_##ELEMTY(void* hv1, size_t row1);
+#define PRINT_HM_DECL(ELEMTY) extern "C" void cu_rt_print_hm_##ELEMTY(void* hv1, size_t row1, size_t col1);
+
+
+PRINT_HV_DECL(int);
+PRINT_HV_DECL(float);
+PRINT_HV_DECL(double);
+
+PRINT_HM_DECL(int);
+PRINT_HM_DECL(float);
+PRINT_HM_DECL(double);
+
+typedef float hvtype;
 
 #ifdef HAMMING_DIST
 #define SCORES_TYPE hvtype
@@ -130,8 +142,9 @@ void __attribute__ ((noinline)) clustering_node(/* Input Buffers: 3*/ __hypervec
     int max_idx = 0;
 
 
+
 #ifdef HAMMING_DIST
-    max_idx = __hetero_hdc_arg_min<K, SCORES_TYPE>(*scores_ptr);
+     max_idx = __hetero_hdc_arg_min<K, SCORES_TYPE>(*scores_ptr);
 #else
     max_idx = __hetero_hdc_arg_max<K, SCORES_TYPE>(*scores_ptr);
 #endif
@@ -232,7 +245,7 @@ void encoding_and_inference_node(/* Input buffers: 4*/ __hypermatrix__<D, N_FEAT
     void* encoding_task = __hetero_task_begin(/* Input Buffers: 3 */ 3, rp_matrix_ptr, rp_matrix_size, datapoint_vec_ptr, datapoint_vec_size, encoded_hv_ptr, encoded_hv_size, /* Output Buffers: 1 */ 1, encoded_hv_ptr, encoded_hv_size, "encoding_task");
 #endif
 
-    rp_encoding_node<D, N_FEATURES, 1>(rp_matrix_ptr, rp_matrix_size, datapoint_vec_ptr, datapoint_vec_size, encoded_hv_ptr, encoded_hv_size);
+      rp_encoding_node<D, N_FEATURES, 1>(rp_matrix_ptr, rp_matrix_size, datapoint_vec_ptr, datapoint_vec_size, encoded_hv_ptr, encoded_hv_size);
 
 #ifndef NODFG
     __hetero_task_end(encoding_task);
@@ -240,7 +253,7 @@ void encoding_and_inference_node(/* Input buffers: 4*/ __hypermatrix__<D, N_FEAT
     void* clustering_task = __hetero_task_begin(/* Input Buffers: 5 */  4, encoded_hv_ptr, encoded_hv_size, clusters_ptr, clusters_size, labels, labels_size, scores_ptr, scores_size, /* Output Buffers: 1 */ 2, encoded_hv_ptr, encoded_hv_size, labels, labels_size, "clustering_task");
 #endif
 
-    clustering_node<D, K, N_VEC>(encoded_hv_ptr, encoded_hv_size, clusters_ptr, clusters_size, scores_ptr, scores_size,  labels, labels_size); 
+     clustering_node<D, K, N_VEC>(encoded_hv_ptr, encoded_hv_size, clusters_ptr, clusters_size, scores_ptr, scores_size,  labels, labels_size); 
 
 #ifndef NODFG
     __hetero_task_end(clustering_task);

@@ -56,6 +56,11 @@ T zero(size_t loop_index_var) {
 	return 0;
 }
 
+template <typename T>
+T one(size_t loop_index_var) {
+	return 1;
+}
+
 
 extern "C" void run_hd_clustering(int EPOCH, hvtype* rp_matrix_buffer, hvtype* input_vectors, int* labels);
 
@@ -182,6 +187,7 @@ extern "C" void run_hd_clustering(int EPOCH, hvtype* rp_matrix_buffer, hvtype* i
 
 
 	__hypermatrix__<N_CENTER, Dhv, hvtype> clusters = __hetero_hdc_hypermatrix<N_CENTER, Dhv, hvtype>();
+	//__hypermatrix__<N_CENTER, Dhv, hvtype> clusters = __hetero_hdc_create_hypermatrix<N_CENTER, Dhv, hvtype>(0, (void*) one<hvtype>);
     auto clusters_handle = __hetero_hdc_get_handle<N_CENTER, Dhv, hvtype>(clusters);
 
 	//static __hypervector__<Dhv, hvtype> encoded_hvs[N_SAMPLE];
@@ -212,6 +218,7 @@ extern "C" void run_hd_clustering(int EPOCH, hvtype* rp_matrix_buffer, hvtype* i
         auto encoded_hv_i = __hetero_hdc_get_matrix_row<N_SAMPLE, Dhv, hvtype>(encoded_hvs, N_SAMPLE, Dhv, i);
 		__hetero_hdc_set_matrix_row(clusters, encoded_hv_i, i);
 	}
+
 
 		auto t_end = std::chrono::high_resolution_clock::now();
 		long mSec = std::chrono::duration_cast<std::chrono::milliseconds>(t_end-t_start).count();
