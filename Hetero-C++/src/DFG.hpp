@@ -128,26 +128,12 @@ void __attribute__ ((noinline)) clustering_node(/* Input Buffers: 3*/ __hypervec
     __hypervector__<K, SCORES_TYPE> scores = *scores_ptr;
     int max_idx = 0;
 
-    // IF using hamming distance:
-    
-    #ifdef HAMMING_DIST
-    SCORES_TYPE max_score = (SCORES_TYPE) D - (*scores_ptr)[0][0]; // I think this is probably causing issues.
-    #else
-    SCORES_TYPE max_score = (SCORES_TYPE) (*scores_ptr)[0][0];
-    #endif
-    
-    for (int k = 0; k < K; k++) {
-        #ifdef HAMMING_DIST
-        SCORES_TYPE score = (SCORES_TYPE) D - (*scores_ptr)[0][k];
-        #else
-        SCORES_TYPE score = (SCORES_TYPE) (*scores_ptr)[0][k];
-        #endif
-        if (score > max_score) {
-            max_score = score;
-            max_idx = k;
-        }
-        
-    } 
+
+#ifdef HAMMING_DIST
+    max_idx = __hetero_hdc_arg_min<K, SCORES_TYPE>(*scores_ptr);
+#else
+    max_idx = __hetero_hdc_arg_max<K, SCORES_TYPE>(*scores_ptr);
+#endif
     // Write labels
     //labels[encoded_hv_idx] = max_idx;
     *labels = max_idx;
