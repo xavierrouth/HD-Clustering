@@ -190,7 +190,7 @@ void gen_rp_matrix(/* Input Buffers*/ __hypervector__<D, hvtype>* rp_seed_vector
 	// Each row is just a wrap shift of the seed.
 	for (int i = 0; i < N_FEATURES; i++) {
 		__hypervector__<D, hvtype>  row = __hetero_hdc_wrap_shift<D, hvtype>(*rp_seed_vector, i);
-        *row_buffer = row;
+        // *row_buffer = row;
         __hetero_hdc_set_matrix_row<N_FEATURES, D, hvtype>(*shifted_matrix, row, i);
 	} 
 

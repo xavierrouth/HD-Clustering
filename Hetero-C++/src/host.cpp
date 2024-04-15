@@ -225,6 +225,10 @@ extern "C" void run_hd_clustering(int EPOCH, hvtype* rp_matrix_buffer, hvtype* i
 		long mSec = std::chrono::duration_cast<std::chrono::milliseconds>(t_end-t_start).count();
 		std::cout << "Inference: " << mSec << " mSec" << std::endl;
 
+        if(i == EPOCH-1){
+            // No need to update clusters on final iteration
+            break;
+        }
 			
         
 		// then update clusters and copy clusters_tmp to clusters, 
