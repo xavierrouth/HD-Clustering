@@ -13,6 +13,7 @@ OPENCL_LIB_PATH:=$(OPENCL_PATH/lib64)
 
 CFLAGS :=  -O0 -Xclang -disable-O0-optnone -fenable-matrix -fno-discard-value-names -fno-exceptions -lm -lrt -pthread -lOpenCL
 
+NVCC ?= "/usr/local/cuda"/bin/nvcc
 
 O1_FLAGS = -targetlibinfo -tti -tbaa -scoped-noalias-aa -assumption-cache-tracker -profile-summary-info -forceattrs -inferattrs -ipsccp -called-value-propagation -globalopt -domtree -mem2reg -deadargelim -basic-aa -aa -loops -lazy-branch-prob -lazy-block-freq -opt-remark-emitter -instcombine -simplifycfg -basiccg -globals-aa -prune-eh -always-inline -function-attrs  -memoryssa -early-cse-memssa -speculative-execution -lazy-value-info -jump-threading -correlated-propagation -libcalls-shrinkwrap -branch-prob -block-freq -pgo-memop-opt -tailcallelim -reassociate -loop-simplify -lcssa-verification -lcssa -scalar-evolution -loop-rotate -licm -loop-unswitch -indvars -loop-idiom -loop-deletion -loop-unroll -memdep -memcpyopt -sccp -demanded-bits -bdce -dse -postdomtree -adce -barrier -rpo-function-attrs -globaldce -float2int -loop-accesses -loop-distribute -loop-vectorize -loop-load-elim -alignment-from-assumptions -strip-dead-prototypes -loop-sink -instsimplify -div-rem-pairs -verify -ee-instrument -early-cse -lower-expect
 # PARAMETERS := -DHPVM -DDEVICE=hpvm::CPU_TARGET
@@ -116,6 +117,57 @@ HPVM_RT := $(HPVM_BUILD_DIR)/tools/hpvm/projects/hpvm-rt/hpvm-rt.bc
 
 # LINK HPVM RT and DCE
 build/output.ll: build/hpvmcompiled.cpu.ll # build/cpu_test.hpvmcompiled.ll
+	$(HPVM_INSTALL_DIR)/build/bin/llvm-link $< $(HPVM_RT) -S -o $@ 
+	$(HPVM_INSTALL_DIR)/build/bin/opt -dce -globaldce $< -S -o $<
+
+
+### ---------- CUBLAS ---------------
+
+# Generate Executable
+host-cublas: build/host.cublas.o build/hdc_cuda_rt.o build/hdc_kernels.o build/hdc_cuda_rt.o build/hdc_kernels.o
+	$(NVCC) $^ -o $@ -lcudadevrt -lcudart -lcublas
+#
+#
+build/host.cublas.o: build/hdc.lowered.cublas.ll
+	$(HPVM_BIN)/clang -fPIC -c -Ofast -march=native   $< -o $@
+
+
+build/hdc_cuda_rt.o: $(HPVM_INSTALL_DIR)/projects/hpvm-hdc/cuda-impl/hdc_cuda_rt.cu
+	$(NVCC) -c -O2 $^ -o $@ 
+build/hdc_kernels.o: $(HPVM_INSTALL_DIR)/projects/hpvm-hdc/cuda-impl/hdc_kernels.cu
+	$(NVCC) -c -O2 $^ -o $@ 
+
+# Clang Frontend to IR
+build/host.cublas.ll: src/host.cpp src/DFG.hpp src/host.h
+	$(HPVM_BIN)/clang++ -DHPVM -DDEVICE=hpvm::CPU_TARGET $(CFLAGS) $(INCLUDES)  -fPIC -march=native -S -emit-llvm $< -o $@ 
+#$HPVM_BIN/clang++ -O1 -I$OPENCL_PATH/include/CL -L$OPENCL_LIB_PATH -I$HPVM_ROOT/projects/hetero-c++/test/include/ -lm -lrt -pthread -lOpenCL  $INCLUDE_FLAG -fenable-matrix    $PREFIX.cpp -S -emit-llvm -o $PREFIX.ll
+
+# GenHPVM for HDC only and mem2reg
+build/hpvm.genhdc.cublas.ll: build/host.cublas.ll
+	$(HPVM_BIN)/opt -mem2reg $(O1_FLAGS) -enable-new-pm=0 -load $(HPVM_LIB)/HPVMGenHPVM.so -genhpvm -hpvm-hdc-only $< -S -o $@
+# $OPT -mem2reg -enable-new-pm=0 -load $HPVM_LIB/HPVMGenHPVM.so -genhpvm  -hpvm-hdc-only $PREFIX.ll -S -o $PREFIX.genhdc.hpvm.ll
+
+# Lower HDC Intrinsics
+build/hdc.lowered.cublas.ll: build/hpvm.genhdc.cublas.ll #hpvm. # -enable-hcc
+	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/LLVMHPVMHDC.so -vector-block-dim=1 -lower-hdc  -compile-cublas -dce -simplifycfg $< -S -o $@ 
+	
+# HCC -> HPVM
+build/hpvmc.cublas.ll: build/hdc.lowered.cublas.ll
+	$(HPVM_BIN)/hcc $< -declsfile $(HPVM_DECLS_FILE) -sanitise-funcs --dot-dfg  -S -o $@
+	$(HPVM_BIN)/opt $@ -dce -S -o $@
+
+# GenHPVM for the HPVM IR
+build/hpvm.cublas.ll: build/hpvmc.cublas.ll
+	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/HPVMGenHPVM.so -dce -mem2reg -genhpvm $< -S -o $@
+
+# Other HPVM Passes
+build/hpvmcompiled.cublas.ll: build/hpvm.cublas.ll
+	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/HPVMBuildDFG.so -load $(HPVM_LIB)/HPVMDFG2LLVM_CPU.so -load $(HPVM_LIB)/HPVMClearDFG.so -load $(HPVM_LIB)/HPVMDFGTransformPasses.so -dfg2llvm-cpu -clearDFG -hpvm-timers-cpu $< -S -o $@
+
+HPVM_RT := $(HPVM_BUILD_DIR)/tools/hpvm/projects/hpvm-rt/hpvm-rt.bc
+
+# LINK HPVM RT and DCE
+build/output.ll: build/hpvmcompiled.cublas.ll # build/cpu_test.hpvmcompiled.ll
 	$(HPVM_INSTALL_DIR)/build/bin/llvm-link $< $(HPVM_RT) -S -o $@ 
 	$(HPVM_INSTALL_DIR)/build/bin/opt -dce -globaldce $< -S -o $<
 
