@@ -12,40 +12,78 @@
 #include <cublas_v2.h>
 // #include <cuda_runtime.h>
 
+std::string x_train_path = "../dataset/isolet_train_trainX.bin";
+std::string y_train_path = "../dataset/isolet_train_trainY.bin";
+
+void datasetBinaryRead(std::vector<int> &data, std::string path){
+	std::ifstream file_(path, std::ios::in | std::ios::binary);
+	// assert(file_.is_open() && "Couldn't open file!");
+	int32_t size;
+	file_.read((char*)&size, sizeof(size));
+	int32_t temp;
+	for(int i = 0; i < size; i++){
+		file_.read((char*)&temp, sizeof(temp));
+		data.push_back(temp);
+	}
+	file_.close();
+}
+
 // #define USE_DOT_SIMILARITY
 #define USE_COS_SIMILARITY
 
-// #define USE_DOT_ENCODING
-#define USE_LVID_ENCODING
+#define USE_DOT_ENCODING
+//#define USE_LVID_ENCODING
 
 int main(int argc, char* argv[]) {
-    fclose(fopen("cluster_results.csv", "w"));  //clear file first
-    fclose(fopen("train_labels.csv", "w"));  //clear file first
+    //fclose(fopen("cluster_results.csv", "w"));  //clear file first
+    //fclose(fopen("train_labels.csv", "w"));  //clear file first
     // ./main [TRAIN dataset path] [DIM] [ITER] [Q]
     // Example:
     // ./main datasets/UCIHAR/UCIHAR_train.choir_dat 10000 20 100
-    int nFeatures_train, nClasses_train;  // nFeatures is same as x_train[0].size()
-    std::vector<std::vector<float>> x_train;
+
+    int nFeatures_train;
+    int nClasses_train;  // nFeatures is same as x_train[0].size()
+    //std::vector<std::vector<float>> x_train;
+    std::vector<int> x_train_int;
     std::vector<int> y_train;
 
-    // readChoirDat(argv[1], nFeatures_train, nClasses_train, x_train, y_train);
-    readFCPSTrainDat(argv[1], nFeatures_train, nClasses_train, x_train, y_train);
 
-    l2norm(x_train);
-    std::vector<float> x_train_flat = flatten(x_train);
+
+    datasetBinaryRead(x_train_int, x_train_path);
+    datasetBinaryRead(y_train, y_train_path);
+    
+    nFeatures_train = 617;
+    nClasses_train = 26;
+    // int train_set_num = 6238;
+
+    std::vector<float> x_train_flat = std::vector<float>(x_train_int.begin(), x_train_int.end());
+    // readChoirDat(argv[1], nFeatures_train, nClasses_train, x_train, y_train);
+    //readFCPSTrainDat(argv[1], nFeatures_train, nClasses_train, x_train, y_train);
+
+
+    // x_train_flat
+    //l2norm(x_train);
+    //std::vector<float> x_train_flat = flatten(x_train);
 
     // base_creation: linear
-    int dim = atoi(argv[2]);
-    int iter_num = atoi(argv[3]);
-    int Q = atoi(argv[4]); // nLevel
+    int dim = 2048;
+    int iter_num = atoi(argv[1]);
+
+
+    std::cout << "epochs:" << iter_num << std::endl;
+
+    int Q = 32; // Hopefully unused. atoi(argv[42]); // nLevel
 
     // int K = atoi(argv[5]);
     int K = nClasses_train;
 
-    int train_set_num = x_train.size();
-    int base_size = nFeatures_train * dim;
-    int train_encode_size = train_set_num * dim;
+    int train_set_num = (x_train_flat.size() - nClasses_train) / 617; 
 
+    std::cout << "train set num: " << train_set_num << std::endl;
+    int base_size = nFeatures_train * dim;
+    size_t train_encode_size = train_set_num * dim;
+
+    std::cout << "train encode isze? : " << train_encode_size << std::endl;
     std::cout << train_set_num << " " << nFeatures_train << std::endl;
 
     // K equals to the number of classes

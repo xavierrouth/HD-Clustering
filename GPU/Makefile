@@ -236,7 +236,7 @@ LIBRARIES += -lcublas
 ################################################################################
 
 # Gencode arguments
-SMS ?= 30 35 37 50 52 60
+SMS ?= 30 35 37 50 52 60 67
 
 ifeq ($(SMS),)
 $(info >>> WARNING - no SM architectures have been specified - waiving sample <<<)
@@ -253,6 +253,8 @@ ifneq ($(HIGHEST_SM),)
 GENCODE_FLAGS += -gencode arch=compute_$(HIGHEST_SM),code=compute_$(HIGHEST_SM)
 endif
 endif
+
+GENCODE_FLAGS = -gencode arch=compute_75,code=compute_75
 
 ifeq ($(SAMPLE_ENABLED),0)
 EXEC ?= @echo "[@]"

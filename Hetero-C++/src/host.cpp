@@ -6,14 +6,6 @@
 #include <cassert>
 #include <cmath>
 
-#define HAMMING_DIST
-#ifdef HAMMING_DIST
-#define SCORES_TYPE hvtype
-#else
-#define SCORES_TYPE float
-#endif
-
-
 void datasetBinaryRead(std::vector<int> &data, std::string path){
 	std::ifstream file_(path, std::ios::in | std::ios::binary);
 	assert(file_.is_open() && "Couldn't open file!");
