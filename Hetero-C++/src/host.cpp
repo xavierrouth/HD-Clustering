@@ -24,6 +24,7 @@ void datasetBinaryRead(std::vector<int> &data, std::string path) {
         data.push_back(temp);
     }
     file_.close();
+    std::cout << "Read file containing vector with " << size << " elements\n";
 }
 
 template <typename T> T initialize_rp_seed(size_t loop_index_var) {
@@ -44,8 +45,9 @@ template <typename T> T initialize_rp_seed(size_t loop_index_var) {
     return ele ? (T)1 : (T)-1;
 }
 
-template <typename T> T copy(T *vec, size_t loop_index_var) {
-    return vec[loop_index_var];
+template <typename T> T copy_no_padding(T *vec, size_t loop_index_var) {
+    // The given data vectors are strided by N_FEAT_PAD elements, even though the vectors are each N_FEAT elements in length.
+    return vec[loop_index_var + (N_FEAT_PAD - N_FEAT) * (loop_index_var / N_FEAT)];
 }
 
 template <typename T> T zero(size_t loop_index_var) { return 0; }
@@ -79,7 +81,7 @@ int main(int argc, char **argv) {
     hvtype *input_vectors = floatVec.data();
     __hypermatrix__<N_SAMPLE, N_FEAT, hvtype> input_vectors_matrix =
         __hetero_hdc_create_hypermatrix<N_SAMPLE, N_FEAT, hvtype>(
-            1, (void *)copy<hvtype>, input_vectors);
+            1, (void *)copy_no_padding<hvtype>, input_vectors);
     auto input_vectors_handle =
         __hetero_hdc_get_handle<N_SAMPLE, N_FEAT>(input_vectors_matrix);
 
@@ -178,9 +180,9 @@ extern "C" void run_hd_clustering(int EPOCH, hvtype *rp_matrix_buffer,
     //		file_rp_matrix_buffer << ",";
     //	}
     // }
-    // for (int i = 0; i < N_SAMPLE * N_FEAT_PAD; ++i) {
+    // for (int i = 0; i < N_SAMPLE * N_FEAT; ++i) {
     //	file_input_vectors << input_vectors[i];
-    //	if (i + 1 < N_SAMPLE * N_FEAT_PAD) {
+    //	if (i + 1 < N_SAMPLE * N_FEAT) {
     //		file_input_vectors << ",";
     //	}
     // }
@@ -226,16 +228,16 @@ extern "C" void run_hd_clustering(int EPOCH, hvtype *rp_matrix_buffer,
     // __hetero_hdc_hypermatrix<N_CENTER, Dhv, hvtype>();
 
     // SCORES_TYPE scores_buffer[N_CENTER];
-    __hypervector__<N_CENTER, SCORES_TYPE> scores =
-        __hetero_hdc_hypervector<N_CENTER, SCORES_TYPE>();
-    auto scores_buffer = __hetero_hdc_get_handle<N_CENTER, SCORES_TYPE>(scores);
+    __hypermatrix__<N_SAMPLE, N_CENTER, SCORES_TYPE> scores =
+        __hetero_hdc_hypermatrix<N_SAMPLE, N_CENTER, SCORES_TYPE>();
+    auto scores_buffer = __hetero_hdc_get_handle<N_SAMPLE, N_CENTER, SCORES_TYPE>(scores);
     size_t scores_size = N_CENTER * sizeof(SCORES_TYPE);
     size_t rp_matrix_size = N_FEAT * Dhv * sizeof(hvtype);
 
     auto t_start = std::chrono::high_resolution_clock::now();
     __hetero_hdc_encoding_loop(
         0, (void *)InitialEncodingDAG<Dhv, N_FEAT>, N_SAMPLE, N_CENTER, N_FEAT,
-        N_FEAT_PAD, rp_matrix_buffer, rp_matrix_size, input_vectors,
+        N_FEAT, rp_matrix_buffer, rp_matrix_size, input_vectors,
         input_vector_size, encoded_hvs_handle, cluster_size);
     printf("Encoding loop completed!\n");
 
@@ -257,21 +259,30 @@ extern "C" void run_hd_clustering(int EPOCH, hvtype *rp_matrix_buffer,
         auto t_start = std::chrono::high_resolution_clock::now();
 
         //__hetero_hdc_inference_loop(12, (void*) root_node<Dhv, N_CENTER,
-        //N_SAMPLE, N_FEAT>, N_SAMPLE, N_FEAT, N_FEAT_PAD, rp_matrix_buffer,
+        //N_SAMPLE, N_FEAT>, N_SAMPLE, N_FEAT, N_FEAT, rp_matrix_buffer,
         // rp_matrix_size, input_vectors, input_vector_size, clusters_handle,
         // clusters_size, labels, labels_size, encoded_hv_buffer,
         // encoded_hv_size, scores_buffer, scores_size);
 	// rp (Dhv, N_FEAT) / (N_FEAT, Dhv) * data (N_SAMPLE, N_FEAT) = encoded (N_SAMPLE, Dhv)
+
         for (int j = 0; j < N_SAMPLE; ++j) {
             root_node<Dhv, N_CENTER, N_SAMPLE, N_FEAT>(
                 (__hypermatrix__<Dhv, N_FEAT, hvtype> *)rp_matrix_buffer,
                 rp_matrix_size,
                 (__hypervector__<N_FEAT, hvtype> *)(input_vectors +
-                                                    N_FEAT_PAD * j),
+                                                    N_FEAT * j),
                 input_vector_size, clusters_handle, clusters_size, labels + j,
-                labels_size, (__hypervector__<Dhv, hvtype> *)(((hvtype*)encoded_hv_buffer) + Dhv * j), encoded_hv_size, scores_buffer,
+                labels_size, (__hypervector__<Dhv, hvtype> *)(((hvtype*)encoded_hv_buffer) + Dhv * j), encoded_hv_size, (__hypervector__<N_CENTER, SCORES_TYPE> *)scores_buffer,
                 scores_size);
         }
+
+        //flat_root<Dhv, N_CENTER, N_SAMPLE, N_FEAT>(
+        //    (__hypermatrix__<N_FEAT, Dhv, hvtype> *)rp_matrix_buffer,
+        //    rp_matrix_size,
+        //    (__hypermatrix__<N_SAMPLE, N_FEAT, hvtype> *)input_vectors,
+        //    input_vector_size, clusters_handle, clusters_size, labels,
+        //    labels_size, encoded_hv_buffer, encoded_hv_size, scores_buffer,
+        //    scores_size);
 
         auto t_end = std::chrono::high_resolution_clock::now();
         long mSec = std::chrono::duration_cast<std::chrono::milliseconds>(
