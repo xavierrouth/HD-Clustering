@@ -381,31 +381,23 @@ void flat_root(
     __hypermatrix__<N_VEC, K, SCORES_TYPE> *scores_ptr,
     size_t scores_size
 ) {
-#if 0
-    // Encoding
     __hypermatrix__<N_VEC, D, hvtype> encoded_hm =
         __hetero_hdc_matmul_hm_hm<N_VEC, N_FEATURES, D, hvtype>(*data_ptr, *rp_matrix_ptr);
     *encoded_ptr = encoded_hm;
+
 #ifdef HAMMING_DIST
     __hypermatrix__<N_VEC, D, hvtype> bipolar_encoded_hm =
         __hetero_hdc_sign_hm<N_VEC, D, hvtype>(encoded_hm);
     *encoded_ptr = bipolar_encoded_hm;
-#endif
-    
-    // Compare with clusters
-#ifdef HAMMING_DIST
+
     *scores_ptr =
         __hetero_hdc_hamming_distance_hm_hm<N_VEC, K, D, hvtype>(*encoded_ptr, *clusters_ptr);
+
+    __hetero_hdc_arg_min_row<N_VEC, K, SCORES_TYPE>(*scores_ptr, labels);
 #else
     *scores_ptr =
         __hetero_hdc_cossim_hm_hm<N_VEC, K, D, hvtype>(*encoded_ptr, *clusters_ptr);
-#endif
 
-    // Get labels
-#ifdef HAMMING_DIST
-    __hetero_hdc_arg_min_row<N_VEC, K, SCORES_TYPE>(*scores_ptr, labels);
-#else
     __hetero_hdc_arg_max_row<N_VEC, K, SCORES_TYPE>(*scores_ptr, labels);
-#endif
 #endif
 }
