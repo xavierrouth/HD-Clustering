@@ -382,7 +382,7 @@ void flat_root(
     size_t scores_size
 ) {
     __hypermatrix__<N_VEC, D, hvtype> encoded_hm =
-        __hetero_hdc_matmul_hm_hm<N_VEC, N_FEATURES, D, hvtype>(*data_ptr, *rp_matrix_ptr);
+        __hetero_hdc_matmul_hm_hm<N_VEC, N_FEATURES, D, hvtype>(*data_ptr, *rp_matrix_ptr, N_VEC, N_FEATURES, D);
     *encoded_ptr = encoded_hm;
 
 #ifdef HAMMING_DIST
@@ -391,13 +391,13 @@ void flat_root(
     *encoded_ptr = bipolar_encoded_hm;
 
     *scores_ptr =
-        __hetero_hdc_hamming_distance_hm_hm<N_VEC, K, D, hvtype>(*encoded_ptr, *clusters_ptr);
+        __hetero_hdc_hamming_distance_hm_hm<N_VEC, K, D, hvtype>(*encoded_ptr, *clusters_ptr, N_VEC, K, D);
 
-    __hetero_hdc_arg_min_row<N_VEC, K, SCORES_TYPE>(*scores_ptr, labels);
+    __hetero_hdc_arg_min_row<N_VEC, K, SCORES_TYPE>(*scores_ptr, labels, N_VEC, K);
 #else
     *scores_ptr =
-        __hetero_hdc_cossim_hm_hm<N_VEC, K, D, hvtype>(*encoded_ptr, *clusters_ptr);
+        __hetero_hdc_cossim_hm_hm<N_VEC, K, D, hvtype>(*encoded_ptr, *clusters_ptr, N_VEC, K, D);
 
-    __hetero_hdc_arg_max_row<N_VEC, K, SCORES_TYPE>(*scores_ptr, labels);
+    __hetero_hdc_arg_max_row<N_VEC, K, SCORES_TYPE>(*scores_ptr, labels, N_VEC, K);
 #endif
 }

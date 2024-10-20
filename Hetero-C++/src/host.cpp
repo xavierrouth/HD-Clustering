@@ -265,24 +265,25 @@ extern "C" void run_hd_clustering(int EPOCH, hvtype *rp_matrix_buffer,
         // encoded_hv_size, scores_buffer, scores_size);
 	// rp (Dhv, N_FEAT) / (N_FEAT, Dhv) * data (N_SAMPLE, N_FEAT) = encoded (N_SAMPLE, Dhv)
 
-        for (int j = 0; j < N_SAMPLE; ++j) {
-            root_node<Dhv, N_CENTER, N_SAMPLE, N_FEAT>(
-                (__hypermatrix__<Dhv, N_FEAT, hvtype> *)rp_matrix_buffer,
-                rp_matrix_size,
-                (__hypervector__<N_FEAT, hvtype> *)(input_vectors +
-                                                    N_FEAT * j),
-                input_vector_size, clusters_handle, clusters_size, labels + j,
-                labels_size, (__hypervector__<Dhv, hvtype> *)(((hvtype*)encoded_hv_buffer) + Dhv * j), encoded_hv_size, (__hypervector__<N_CENTER, SCORES_TYPE> *)scores_buffer,
-                scores_size);
-        }
+        //for (int j = 0; j < N_SAMPLE; ++j) {
+        //    root_node<Dhv, N_CENTER, N_SAMPLE, N_FEAT>(
+        //        (__hypermatrix__<Dhv, N_FEAT, hvtype> *)rp_matrix_buffer,
+        //        rp_matrix_size,
+        //        (__hypervector__<N_FEAT, hvtype> *)(input_vectors +
+        //                                            N_FEAT * j),
+        //        input_vector_size, clusters_handle, clusters_size, labels + j,
+        //        labels_size, (__hypervector__<Dhv, hvtype> *)(((hvtype*)encoded_hv_buffer) + Dhv * j), encoded_hv_size, (__hypervector__<N_CENTER, SCORES_TYPE> *)scores_buffer,
+        //        scores_size);
+        //}
 
-        //flat_root<Dhv, N_CENTER, N_SAMPLE, N_FEAT>(
-        //    (__hypermatrix__<N_FEAT, Dhv, hvtype> *)rp_matrix_buffer,
-        //    rp_matrix_size,
-        //    (__hypermatrix__<N_SAMPLE, N_FEAT, hvtype> *)input_vectors,
-        //    input_vector_size, clusters_handle, clusters_size, labels,
-        //    labels_size, encoded_hv_buffer, encoded_hv_size, scores_buffer,
-        //    scores_size);
+        // Still need to wrap this w/ inference loop, and make inference loop a no-op for non-accelerators.
+        flat_root<Dhv, N_CENTER, N_SAMPLE, N_FEAT>(
+            (__hypermatrix__<N_FEAT, Dhv, hvtype> *)rp_matrix_buffer,
+            rp_matrix_size,
+            (__hypermatrix__<N_SAMPLE, N_FEAT, hvtype> *)input_vectors,
+            input_vector_size, clusters_handle, clusters_size, labels,
+            labels_size, encoded_hv_buffer, encoded_hv_size, scores_buffer,
+            scores_size);
 
         auto t_end = std::chrono::high_resolution_clock::now();
         long mSec = std::chrono::duration_cast<std::chrono::milliseconds>(
