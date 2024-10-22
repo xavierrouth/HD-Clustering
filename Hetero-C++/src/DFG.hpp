@@ -9,6 +9,11 @@
 #define PRINT_HM_DECL(ELEMTY)                                                  \
     extern "C" void cu_rt_print_hm_##ELEMTY(void *hv1, size_t row1,            \
                                             size_t col1);
+#define DUMP_HV_DECL(ELEMTY)                                                  \
+    extern "C" void cu_rt_dump_##ELEMTY##_hv(void *hv1, size_t row1, const char * filename);
+#define DUMP_HM_DECL(ELEMTY)                                                  \
+    extern "C" void cu_rt_dump_##ELEMTY##_hm(void *hv1, size_t row1,            \
+                                            size_t col1, const char * filename);
 
 PRINT_HV_DECL(int);
 PRINT_HV_DECL(float);
@@ -17,6 +22,14 @@ PRINT_HV_DECL(double);
 PRINT_HM_DECL(int);
 PRINT_HM_DECL(float);
 PRINT_HM_DECL(double);
+
+DUMP_HV_DECL(int);
+DUMP_HV_DECL(float);
+DUMP_HV_DECL(double);
+
+DUMP_HM_DECL(int);
+DUMP_HM_DECL(float);
+DUMP_HM_DECL(double);
 
 typedef float hvtype;
 
@@ -367,8 +380,28 @@ void root_node(
 }
 
 template <int D, int K, int N_VEC, int N_FEATURES>
+void flat_encode(
+    __hypermatrix__<D, N_FEATURES, hvtype> *rp_matrix_ptr,
+    size_t rp_matrix_size,
+    __hypermatrix__<N_VEC, N_FEATURES, hvtype> *data_ptr,
+    size_t data_size,
+    __hypermatrix__<N_VEC, D, hvtype> *encoded_ptr,
+    size_t encoded_size
+) {
+    __hypermatrix__<N_VEC, D, hvtype> encoded_hm =
+        __hetero_hdc_matmul_hm_hm<N_VEC, N_FEATURES, D, hvtype>(*data_ptr, *rp_matrix_ptr, N_VEC, N_FEATURES, D);
+    *encoded_ptr = encoded_hm;
+
+#ifdef HAMMING_DIST
+    __hypermatrix__<N_VEC, D, hvtype> bipolar_encoded_hm =
+        __hetero_hdc_sign_hm<N_VEC, D, hvtype>(encoded_hm);
+    *encoded_ptr = bipolar_encoded_hm;
+#endif
+}
+
+template <int D, int K, int N_VEC, int N_FEATURES>
 void flat_root(
-    __hypermatrix__<N_FEATURES, D, hvtype> *rp_matrix_ptr,
+    __hypermatrix__<D, N_FEATURES, hvtype> *rp_matrix_ptr,
     size_t rp_matrix_size,
     __hypermatrix__<N_VEC, N_FEATURES, hvtype> *data_ptr,
     size_t data_size,
@@ -390,8 +423,11 @@ void flat_root(
         __hetero_hdc_sign_hm<N_VEC, D, hvtype>(encoded_hm);
     *encoded_ptr = bipolar_encoded_hm;
 
+    //cu_rt_dump_float_hm(encoded_ptr, N_VEC, D, "encoded_hm");
+    //cu_rt_dump_float_hm(clusters_ptr, K, D, "clusters_hm");
     *scores_ptr =
         __hetero_hdc_hamming_distance_hm_hm<N_VEC, K, D, hvtype>(*encoded_ptr, *clusters_ptr, N_VEC, K, D);
+    //cu_rt_dump_float_hm(scores_ptr, N_VEC, K, "scores_hm");
 
     __hetero_hdc_arg_min_row<N_VEC, K, SCORES_TYPE>(*scores_ptr, labels, N_VEC, K);
 #else
