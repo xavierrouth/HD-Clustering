@@ -2,7 +2,7 @@
 #include <hpvm_hdc.h>
 #include <iostream>
 
-#define HAMMING_DIST
+//#define HAMMING_DIST
 
 #define PRINT_HV_DECL(ELEMTY)                                                  \
     extern "C" void cu_rt_print_hv_##ELEMTY(void *hv1, size_t row1);
