@@ -423,11 +423,8 @@ void flat_root(
         __hetero_hdc_sign_hm<N_VEC, D, hvtype>(encoded_hm);
     *encoded_ptr = bipolar_encoded_hm;
 
-    //cu_rt_dump_float_hm(encoded_ptr, N_VEC, D, "encoded_hm");
-    //cu_rt_dump_float_hm(clusters_ptr, K, D, "clusters_hm");
     *scores_ptr =
         __hetero_hdc_hamming_distance_hm_hm<N_VEC, K, D, hvtype>(*encoded_ptr, *clusters_ptr, N_VEC, K, D);
-    //cu_rt_dump_float_hm(scores_ptr, N_VEC, K, "scores_hm");
 
     __hetero_hdc_arg_min_row<N_VEC, K, SCORES_TYPE>(*scores_ptr, labels, N_VEC, K);
 #else
