@@ -212,11 +212,9 @@ extern "C" void run_hd_clustering(int EPOCH, hvtype *rp_matrix_buffer,
     size_t rp_matrix_size = N_FEAT * Dhv * sizeof(hvtype);
 
     auto t_start = std::chrono::high_resolution_clock::now();
-    flat_encode<Dhv, N_CENTER, N_SAMPLE, N_FEAT>(
-        (__hypermatrix__<Dhv, N_FEAT, hvtype> *)rp_matrix_buffer,
-        rp_matrix_size,
-        (__hypermatrix__<N_SAMPLE, N_FEAT, hvtype> *)input_vectors,
-        input_vectors_size, encoded_hvs_handle, cluster_size);
+    __hetero_hdc_encoding_loop(0, (void*) flat_encode<Dhv, N_CENTER, N_SAMPLE, N_FEAT>, 
+        N_SAMPLE, N_CENTER, N_FEAT, N_FEAT, rp_matrix_buffer, rp_matrix_size, 
+        input_vectors, input_vectors_size, encoded_hvs_handle, clusters_size);
     for (int i = 0; i < N_CENTER; ++i) {
         auto encoded_hv_i = __hetero_hdc_get_matrix_row<N_SAMPLE, Dhv, hvtype>(
             encoded_hvs, N_SAMPLE, Dhv, i);
