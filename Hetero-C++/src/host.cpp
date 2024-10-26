@@ -234,7 +234,7 @@ extern "C" void run_hd_clustering(int EPOCH, hvtype *rp_matrix_buffer,
         auto t_start = std::chrono::high_resolution_clock::now();
 
         __hetero_hdc_inference_loop(12, (void*) flat_root<Dhv, N_CENTER,
-            N_SAMPLE, N_FEAT>, N_SAMPLE, N_FEAT, N_FEAT, rp_matrix_buffer,
+            N_SAMPLE, N_FEAT>, N_SAMPLE, Dhv, N_CENTER, N_FEAT, rp_matrix_buffer,
             rp_matrix_size, input_vectors, input_vectors_size, clusters_handle,
             clusters_size, labels, labels_size, encoded_hv_buffer,
             encoded_hvs_size, scores_buffer, scores_size);
