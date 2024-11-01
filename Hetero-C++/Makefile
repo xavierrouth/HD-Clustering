@@ -6,6 +6,7 @@ HPVM_LIB := $(HPVM_INSTALL_DIR)/build/lib
 HPVM_BIN := $(HPVM_INSTALL_DIR)/build/bin
 
 HPVM_DECLS_FILE := $(HPVM_BUILD_DIR)/tools/hpvm/projects/hetero-c++/lib/HPVMCFunctionDeclarations/HPVMCFunctionDeclarations.bc
+ACCELERATOR_API_PATH := /home/xrouth2/hdc/hpvm-pcm/device_interface
 
 CUDA_PATH:=/software/cuda-9.1
 OPENCL_PATH:=$(CUDA_PATH)
@@ -23,8 +24,8 @@ O1_FLAGS = -targetlibinfo -tti -tbaa -scoped-noalias-aa -assumption-cache-tracke
 ### ---------- SIM ---------------
 
 # Generate Executable
-host-sim: build/hdc.lowered.sim.ll accelerator_api/hpvm_interface.cpp accelerator_api/api_hdnn_reram.hpp
-	$(HPVM_INSTALL_DIR)/build/bin/clang++ -lm -lrt -g -Ofast accelerator_api/hpvm_interface.cpp $< -o $@ 
+host-sim: build/hdc.lowered.sim.ll $(ACCELERATOR_API_PATH)/hpvm_interface.cpp $(ACCELERATOR_API_PATH)/api_hdnn_reram.hpp
+	$(HPVM_INSTALL_DIR)/build/bin/clang++ -lm -lrt -g -Ofast $(ACCELERATOR_API_PATH)/hpvm_interface.cpp $< -o $@ 
 
 # Clang Frontend to IR
 build/host.sim.ll: src/host.cpp src/host.h src/DFG.hpp
@@ -38,13 +39,13 @@ build/hpvm.genhdc.sim.ll: build/host.sim.ll
 
 # Lower HDC Intrinsics
 build/hdc.lowered.sim.ll: build/hpvm.genhdc.sim.ll #hpvm. # -enable-hcc
-	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/LLVMHPVMHDC.so -vector-block-dim=1 -lower-hdc -compile-sim -dce -simplifycfg $< -S -o $@ 
+	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/LLVMHPVMHDC.so -vector-block-dim=1 -mlc -mlc-bits=1 -write-verify-cycles=5  -lower-hdc -compile-sim -dce -globaldce -simplifycfg $< -S -o $@ 
 
 ### ---------- ACCEL ---------------
 
 # Generate Executable
-host-accel: build/hdc.lowered.accel.ll accelerator_api/hpvm_interface.cpp accelerator_api/api_hdnn_reram.hpp
-	$(HPVM_INSTALL_DIR)/build/bin/clang++ -lm -lrt -g -Ofast accelerator_api/hpvm_interface.cpp $< -o $@ 
+host-accel: build/hdc.lowered.accel.ll $(ACCELERATOR_API_PATH)/hpvm_interface.cpp $(ACCELERATOR_API_PATH)/api_hdnn_reram.hpp
+	$(HPVM_INSTALL_DIR)/build/bin/clang++ -lm -lrt -g -Ofast $(ACCELERATOR_API_PATH)/hpvm_interface.cpp $< -o $@ 
 
 # Clang Frontend to IR
 build/host.accel.ll: src/host.cpp src/host.h src/DFG.hpp
