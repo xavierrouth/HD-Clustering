@@ -6,7 +6,7 @@
 
 #define N_CENTER		26	//number of centers. (e.g., isolet: 26,)
 #define N_FEAT			617 //feature per input (e.g., isolet: 617)
-#define Dhv				8096 //hypervectors length
+#define Dhv				2048 //hypervectors length
 #define N_SAMPLE 		6238 // 6238 // 238 //  last 70 are always wrong??
 
 #define COL				8 //number of columns of a matrix-vector multiplication window

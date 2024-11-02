@@ -6,7 +6,7 @@ HPVM_LIB := $(HPVM_INSTALL_DIR)/build/lib
 HPVM_BIN := $(HPVM_INSTALL_DIR)/build/bin
 
 HPVM_DECLS_FILE := $(HPVM_BUILD_DIR)/tools/hpvm/projects/hetero-c++/lib/HPVMCFunctionDeclarations/HPVMCFunctionDeclarations.bc
-ACCELERATOR_API_PATH := /home/xrouth2/hdc/hpvm-pcm/device_interface
+ACCELERATOR_API_PATH := accelerator_api
 
 CUDA_PATH:=/software/cuda-9.1
 OPENCL_PATH:=$(CUDA_PATH)
@@ -25,7 +25,7 @@ O1_FLAGS = -targetlibinfo -tti -tbaa -scoped-noalias-aa -assumption-cache-tracke
 
 # Generate Executable
 host-sim: build/hdc.lowered.sim.ll $(ACCELERATOR_API_PATH)/hpvm_interface.cpp $(ACCELERATOR_API_PATH)/api_hdnn_reram.hpp
-	$(HPVM_INSTALL_DIR)/build/bin/clang++ -lm -lrt -g -Ofast $(ACCELERATOR_API_PATH)/hpvm_interface.cpp $< -o $@ 
+	$(HPVM_INSTALL_DIR)/build/bin/clang++ -lm -lrt -Ofast $(ACCELERATOR_API_PATH)/hpvm_interface.cpp $< -o $@ 
 
 # Clang Frontend to IR
 build/host.sim.ll: src/host.cpp src/host.h src/DFG.hpp
