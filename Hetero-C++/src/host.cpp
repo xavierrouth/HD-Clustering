@@ -68,7 +68,7 @@ int main(int argc, char** argv) {
 #endif
 
 	auto t_start = std::chrono::high_resolution_clock::now();
-	std::cout << "Main Starting" << std::endl;
+	//std::cout << "Main Starting" << std::endl;
 
 	assert(argc == 2 && "Expected parameter");
 	int EPOCH = std::atoi(argv[1]);
@@ -78,10 +78,10 @@ int main(int argc, char** argv) {
 	datasetBinaryRead(X_data, X_data_path);
 	datasetBinaryRead(y_data, y_data_path);
 
-	std::cout << "Read Data Starting" << std::endl;
+	//std::cout << "Read Data Starting" << std::endl;
 	int shuffle_arr[y_data.size()];
 
-	std::cout << "X  DATA SIZE: " << X_data.size() << std::endl;
+	//std::cout << "X  DATA SIZE: " << X_data.size() << std::endl;
 	
 	// assert(N_SAMPLE == y_data.size());
 	
@@ -101,7 +101,7 @@ int main(int argc, char** argv) {
 	auto t_elapsed = std::chrono::high_resolution_clock::now() - t_start;
 	long mSec = std::chrono::duration_cast<std::chrono::milliseconds>(t_elapsed).count();
 	long mSec1 = mSec;
-	std::cout << "Reading data took " << mSec << " mSec" << std::endl;
+	//std::cout << "Reading data took " << mSec << " mSec" << std::endl;
 
 	t_start = std::chrono::high_resolution_clock::now();
 
@@ -109,11 +109,11 @@ int main(int argc, char** argv) {
     auto rp_seed_buffer = __hetero_hdc_get_handle<Dhv, hvtype>(rp_seed);
 
 
-	std::cout << "Dimension over 32: " << Dhv/32 << std::endl;
+	//std::cout << "Dimension over 32: " << Dhv/32 << std::endl;
 	//We need a seed ID. To generate in a random yet determenistic (for later debug purposes) fashion, we use bits of log2 as some random stuff.
 
-	std::cout << "Seed hv:\n";
-	std::cout << "After seed generation\n";
+	//std::cout << "Seed hv:\n";
+	//std::cout << "After seed generation\n";
 
 	// Dhv needs to be greater than N_FEAT for the orthognality to hold.
 
@@ -136,15 +136,15 @@ int main(int argc, char** argv) {
 #endif
 	auto gen_rp_matrix_t_elapsed = std::chrono::high_resolution_clock::now() - gen_rp_matrix_t_start;
 	long gen_rp_matrix_mSec = std::chrono::duration_cast<std::chrono::milliseconds>(gen_rp_matrix_t_elapsed).count();
-	std::cout << "gen_rp_matrix: " << gen_rp_matrix_mSec << " mSec" << std::endl;
+	//std::cout << "gen_rp_matrix: " << gen_rp_matrix_mSec << " mSec" << std::endl;
 
 
 	run_hd_clustering(EPOCH, (hvtype*) rp_matrix_buffer,(hvtype*) input_vectors_handle, labels);
 
 	t_elapsed = std::chrono::high_resolution_clock::now() - t_start;
 	mSec = std::chrono::duration_cast<std::chrono::milliseconds>(t_elapsed).count();
-	std::cout << "\nReading data took " << mSec1 << " mSec" << std::endl;    
-	std::cout << "Execution (" << EPOCH << " epochs)  took " << mSec << " mSec" << std::endl;
+	//std::cout << "\nReading data took " << mSec1 << " mSec" << std::endl;    
+	//std::cout << "Execution (" << EPOCH << " epochs)  took " << mSec << " mSec" << std::endl;
 	
 	std::ofstream myfile("out.txt");
 	for(int i = 0; i < N_SAMPLE; i++){
@@ -157,7 +157,7 @@ int main(int argc, char** argv) {
 		correct += y_data[i] == labels[i];
 	}
 
-	std::cout << "accuracy: " << (correct * 1.0) / (N_SAMPLE * 1.0) << std::endl;
+	//std::cout << "accuracy: " << (correct * 1.0) / (N_SAMPLE * 1.0) << std::endl;
 
 #ifndef NODFG
 	__hpvm__cleanup();
@@ -226,7 +226,7 @@ extern "C" void run_hd_clustering(int EPOCH, hvtype* rp_matrix_buffer, hvtype* i
 
 		auto t_start = std::chrono::high_resolution_clock::now();
 	__hetero_hdc_encoding_loop(0, (void*) InitialEncodingDAG<Dhv, N_FEAT>, N_SAMPLE, N_CENTER, N_FEAT, N_FEAT, rp_matrix_buffer, rp_matrix_size, input_vectors, input_vector_size, encoded_hvs_handle, cluster_size);
-    printf("Encoding loop completed!\n");
+    //printf("Encoding loop completed!\n");
 
 	for (int i = 0; i < N_CENTER; i ++) {
         auto encoded_hv_i = __hetero_hdc_get_matrix_row<N_SAMPLE, Dhv, hvtype>(encoded_hvs, N_SAMPLE, Dhv, i);
@@ -237,9 +237,9 @@ extern "C" void run_hd_clustering(int EPOCH, hvtype* rp_matrix_buffer, hvtype* i
 	long mSec = std::chrono::duration_cast<std::chrono::milliseconds>(t_end-t_start).count();
 	std::cout << "Encoding: " << mSec << " mSec" << std::endl;
 
-	std::cout << "Starting clustering\n";
+	//std::cout << "Starting clustering\n";
 	for (int i = 0; i < EPOCH; i++) {
-		std::cout << "Starting EPOCH" << std::endl;
+		//std::cout << "Starting EPOCH" << std::endl;
 		auto t_start = std::chrono::high_resolution_clock::now();
 
 		// Dump pointers
@@ -264,7 +264,7 @@ extern "C" void run_hd_clustering(int EPOCH, hvtype* rp_matrix_buffer, hvtype* i
 
         if (i == EPOCH - 1){
             // No need to update clusters on final iteration
-			std::cout << "breaking on  final iteration" << std::endl;
+			//std::cout << "breaking on  final iteration" << std::endl;
             break;
         }
 			

@@ -1,6 +1,6 @@
 // This file is compiled as C++ and linked with stdlib
 // into the simulation executable.
-#define DEBUG 1
+//#define DEBUG 1
 
 #include <cstring>
 #include <random>
@@ -112,8 +112,8 @@ sim_hdnn_reram::sim_hdnn_reram(uint32_t dim_f, uint32_t dim_d, uint32_t num_c,ui
   init_buffer();
   init_reram_array();
 
-  printf("Initialized sim_hdnn_reram with %d features, %d HD dims. and %d "
-         "classes...\n",
+  printf("Initialized SpecPCM simulator with %d features, %d HD dims, and %d "
+         "classes.\n",
          dim_feature, dim_hv, num_class);
 
 #ifdef DEBUG
