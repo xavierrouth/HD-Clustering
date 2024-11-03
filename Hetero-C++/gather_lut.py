@@ -10,7 +10,7 @@ for mlc in MLC:
 		myenv["MLC"] = str(mlc)
 		myenv["WRITE_VERIFY"] = str(wv)
 		subprocess.run(["make", "clean", "host-sim"], env=myenv)
-		subprocess.run(["./host-sim", "3"])
+		subprocess.run(["./host-sim", "2"])
 		result = subprocess.run(["python3", "mutual_info.py"], capture_output=True)
 		score = float(str(result.stdout).split(" ")[-1].split("\\")[0])
 		lut[(mlc, wv)] = score
