@@ -15,7 +15,7 @@ OPENCL_LIB_PATH:=$(OPENCL_PATH/lib64)
 MLC ?= 1
 WRITE_VERIFY ?= 5
 
-CFLAGS :=  -O0 -Xclang -disable-O0-optnone -fenable-matrix -fno-discard-value-names -fno-exceptions -lm -lrt -pthread -lOpenCL
+CFLAGS :=  -O0 -Xclang -disable-O0-optnone -fenable-matrix -fno-discard-value-names -fno-exceptions -pthread
 
 NVCC ?= "/usr/local/cuda"/bin/nvcc
 
