@@ -290,10 +290,10 @@ extern "C" void run_hd_clustering(int EPOCH, hvtype* rp_matrix_buffer, hvtype* i
 			// set temp_clusters -> clusters
 			__hypervector__<Dhv, hvtype> cluster_temp = __hetero_hdc_get_matrix_row<N_CENTER, Dhv, hvtype>(clusters_temp, N_CENTER, Dhv, k);
 			/*  Print  out cluster: */
-			for (int j = 0; j < Dhv; j++) {
-				std::cout << cluster_temp[0][j] << " ";
-			}
-			std::cout  << std::endl;
+			//for (int j = 0; j < Dhv; j++) {
+			//	std::cout << cluster_temp[0][j] << " ";
+			//}
+			//std::cout  << std::endl;
 			__hetero_hdc_set_matrix_row(clusters, cluster_temp, k);
 
 			// #ifdef HAMMING_DIST

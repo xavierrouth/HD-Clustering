@@ -12,6 +12,9 @@ CUDA_PATH:=/software/cuda-9.1
 OPENCL_PATH:=$(CUDA_PATH)
 OPENCL_LIB_PATH:=$(OPENCL_PATH/lib64)
 
+MLC ?= 1
+WRITE_VERIFY ?= 5
+
 CFLAGS :=  -O0 -Xclang -disable-O0-optnone -fenable-matrix -fno-discard-value-names -fno-exceptions -lm -lrt -pthread -lOpenCL
 
 NVCC ?= "/usr/local/cuda"/bin/nvcc
@@ -39,7 +42,7 @@ build/hpvm.genhdc.sim.ll: build/host.sim.ll
 
 # Lower HDC Intrinsics
 build/hdc.lowered.sim.ll: build/hpvm.genhdc.sim.ll #hpvm. # -enable-hcc
-	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/LLVMHPVMHDC.so -vector-block-dim=1 -mlc -mlc-bits=1 -write-verify-cycles=5  -lower-hdc -compile-sim -dce -globaldce -simplifycfg $< -S -o $@ 
+	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/LLVMHPVMHDC.so -vector-block-dim=1 -mlc -mlc-bits=$(MLC) -write-verify-cycles=$(WRITE_VERIFY)  -lower-hdc -compile-sim -dce -globaldce -simplifycfg $< -S -o $@ 
 
 ### ---------- ACCEL ---------------
 

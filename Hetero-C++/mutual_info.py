@@ -15,5 +15,5 @@ nmi_score = normalized_mutual_info_score(true_labels, predicted_labels)
 print(f"Normalized Mutual Information Score: {nmi_score}")
 
 # Calculate Adjusted Mutual Information Score
-ami_score = adjusted_mutual_info_score(true_labels, predicted_labels)
-print(f"Adjusted Mutual Information Score: {ami_score}")
+#ami_score = adjusted_mutual_info_score(true_labels, predicted_labels)
+#print(f"Adjusted Mutual Information Score: {ami_score}")
