@@ -224,6 +224,7 @@ extern "C" void run_hd_clustering(int EPOCH, hvtype* rp_matrix_buffer, hvtype* i
 	size_t scores_size = N_CENTER * sizeof(SCORES_TYPE);
 	size_t rp_matrix_size = N_FEAT * Dhv * sizeof(hvtype);
 
+	std::cout << "Beginning Encoding." << std::endl;
 		auto t_start = std::chrono::high_resolution_clock::now();
 	__hetero_hdc_encoding_loop(0, (void*) InitialEncodingDAG<Dhv, N_FEAT>, N_SAMPLE, N_CENTER, N_FEAT, N_FEAT, rp_matrix_buffer, rp_matrix_size, input_vectors, input_vector_size, encoded_hvs_handle, cluster_size);
     //printf("Encoding loop completed!\n");
@@ -232,10 +233,10 @@ extern "C" void run_hd_clustering(int EPOCH, hvtype* rp_matrix_buffer, hvtype* i
         auto encoded_hv_i = __hetero_hdc_get_matrix_row<N_SAMPLE, Dhv, hvtype>(encoded_hvs, N_SAMPLE, Dhv, i);
 		__hetero_hdc_set_matrix_row(*clusters_handle, encoded_hv_i, i);
 	}
+	std::cout << "Finished Encoding." << std::endl;
 
 	auto t_end = std::chrono::high_resolution_clock::now();
 	long mSec = std::chrono::duration_cast<std::chrono::milliseconds>(t_end-t_start).count();
-	std::cout << "Encoding: " << mSec << " mSec" << std::endl;
 
 	//std::cout << "Starting clustering\n";
 	for (int i = 0; i < EPOCH; i++) {
@@ -245,6 +246,7 @@ extern "C" void run_hd_clustering(int EPOCH, hvtype* rp_matrix_buffer, hvtype* i
 		// Dump pointers
 		// std::cout << clusters_handle << " " << binarized_clusters_handle << " " << scratch_hv_handle << labels << encoded_hv_buffer << scores_buffer << std::endl;
 		
+		std::cout << "Beginning Inference." << std::endl;
 		__hetero_hdc_inference_loop(19, 
 		(void*) root_node<Dhv, N_CENTER, N_SAMPLE, N_FEAT>, 
 			N_SAMPLE, N_FEAT, N_FEAT, 
@@ -260,7 +262,7 @@ extern "C" void run_hd_clustering(int EPOCH, hvtype* rp_matrix_buffer, hvtype* i
 
 		auto t_end = std::chrono::high_resolution_clock::now();
 		long mSec = std::chrono::duration_cast<std::chrono::milliseconds>(t_end-t_start).count();
-		std::cout << "Inference: " << mSec << " mSec" << std::endl;
+		std::cout << "Finished Inference." << std::endl;
 
         if (i == EPOCH - 1){
             // No need to update clusters on final iteration
@@ -270,6 +272,7 @@ extern "C" void run_hd_clustering(int EPOCH, hvtype* rp_matrix_buffer, hvtype* i
 			
 		t_start = std::chrono::high_resolution_clock::now();
 
+		std::cout << "Beginning Update." << std::endl;
 		// Zero out clusters_temp
 		for (int k = 0; k < N_CENTER; k++) {
 			auto hv_zero = __hetero_hdc_create_hypervector<Dhv, hvtype>(0, (void*) zero_hv<hvtype>);
@@ -306,6 +309,6 @@ extern "C" void run_hd_clustering(int EPOCH, hvtype* rp_matrix_buffer, hvtype* i
 
 		t_end = std::chrono::high_resolution_clock::now();
 		mSec = std::chrono::duration_cast<std::chrono::milliseconds>(t_end-t_start).count();
-		std::cout << "Update: " << mSec << " mSec" << std::endl;
+		std::cout << "Finished Update." << std::endl;
 	}
 }
