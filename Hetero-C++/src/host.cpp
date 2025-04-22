@@ -229,7 +229,7 @@ extern "C" void run_hd_clustering(int EPOCH, hvtype* rp_matrix_buffer, hvtype* i
     printf("Encoding loop completed!\n");
 
 	for (int i = 0; i < N_CENTER; i ++) {
-        auto encoded_hv_i = __hetero_hdc_get_matrix_row<N_SAMPLE, Dhv, hvtype>(encoded_hvs, N_SAMPLE, Dhv, i);
+        auto encoded_hv_i = __hetero_hdc_get_matrix_row<N_SAMPLE, Dhv, hvtype>(encoded_hvs, N_SAMPLE, Dhv, i * 2);
 		__hetero_hdc_set_matrix_row(*clusters_handle, encoded_hv_i, i);
 	}
 

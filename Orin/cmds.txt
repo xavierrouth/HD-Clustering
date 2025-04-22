@@ -1,0 +1,2 @@
+/usr/local/cuda/bin/nvcc -ccbin g++ -I../../common/inc -std=c++11 -Xcompiler -std=c++11 -gencode arch=compute_87,code=sm_87 -gencode arch=compute_87,code=compute_87 -c main.cu -o bin/main.o 
+/usr/local/cuda/bin/nvcc -ccbin g++ -std=c++11 -Xcompiler -std=c++11 -gencode arch=compute_87,code=sm_87 -gencode arch=compute_87,code=compute_87 -o main bin/main.o -lcublas -lcudaevrt -lcudart

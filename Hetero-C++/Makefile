@@ -25,7 +25,7 @@ O1_FLAGS = -targetlibinfo -tti -tbaa -scoped-noalias-aa -assumption-cache-tracke
 
 # Generate Executable
 host-sim: build/hdc.lowered.sim.ll $(ACCELERATOR_API_PATH)/hpvm_interface.cpp $(ACCELERATOR_API_PATH)/api_hdnn_reram.hpp
-	$(HPVM_INSTALL_DIR)/build/bin/clang++ -lm -lrt -g -Ofast $(ACCELERATOR_API_PATH)/hpvm_interface.cpp $< -o $@ 
+	$(HPVM_INSTALL_DIR)/build/bin/clang++ -lm -lrt -Ofast $(ACCELERATOR_API_PATH)/hpvm_interface.cpp $< -o $@ 
 
 # Clang Frontend to IR
 build/host.sim.ll: src/host.cpp src/host.h src/DFG.hpp
@@ -38,8 +38,13 @@ build/hpvm.genhdc.sim.ll: build/host.sim.ll
 # $OPT -mem2reg -enable-new-pm=0 -load $HPVM_LIB/HPVMGenHPVM.so -genhpvm  -hpvm-hdc-only $PREFIX.ll -S -o $PREFIX.genhdc.hpvm.ll
 
 # Lower HDC Intrinsics
-build/hdc.lowered.sim.ll: build/hpvm.genhdc.sim.ll #hpvm. # -enable-hcc
+build/hdc.lowered.before.sim.ll: build/hpvm.genhdc.sim.ll #hpvm. # -enable-hcc
 	$(HPVM_BIN)/opt -enable-new-pm=0 -load $(HPVM_LIB)/LLVMHPVMHDC.so -vector-block-dim=1 -mlc -mlc-bits=1 -write-verify-cycles=5  -lower-hdc -compile-sim -dce -globaldce -simplifycfg $< -S -o $@ 
+
+# DCE
+# Lower HDC Intrinsics
+build/hdc.lowered.sim.ll: build/hdc.lowered.before.sim.ll 
+	$(HPVM_BIN)/opt -enable-new-pm=0 -dce -globaldce $< -S -o $@ 
 
 ### ---------- ACCEL ---------------
 
